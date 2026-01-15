@@ -1,0 +1,10 @@
+{
+  "dependencies": [
+    "directx-headers",
+    "glfw3",
+    "spirv-headers",
+    "spirv-reflect",
+    "stb",
+    "vulkan-memory-allocator"
+  ]
+}

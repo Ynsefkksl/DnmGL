@@ -1,0 +1,101 @@
+#pragma once
+
+#include "DnmGL/Vulkan/Context.hpp"
+
+namespace DnmGL::Vulkan {
+    static constexpr vk::Format VkImageFormatMap[] {
+        vk::Format::eUndefined,
+        vk::Format::eR8Uint,
+        vk::Format::eR8Unorm,
+        vk::Format::eR8Snorm,
+        vk::Format::eR8Sint,
+        vk::Format::eR8G8Uint,
+        vk::Format::eR8G8Unorm,
+        vk::Format::eR8G8Snorm,
+        vk::Format::eR8G8Sint,
+        vk::Format::eR8G8B8A8Uint,
+        vk::Format::eR8G8B8A8Unorm,
+        vk::Format::eR8G8B8A8Snorm,
+        vk::Format::eR8G8B8A8Sint,
+        vk::Format::eR8G8B8A8Srgb,
+        vk::Format::eR16Uint,
+        vk::Format::eR16Sfloat,
+        vk::Format::eR16Unorm,
+        vk::Format::eR16Snorm,
+        vk::Format::eR16Sint,
+        vk::Format::eR16G16Uint,
+        vk::Format::eR16G16Sfloat,
+        vk::Format::eR16G16Unorm,
+        vk::Format::eR16G16Snorm,
+        vk::Format::eR16G16Sint,
+        vk::Format::eR16G16B16A16Uint,
+        vk::Format::eR16G16B16A16Sfloat,
+        vk::Format::eR16G16B16A16Unorm,
+        vk::Format::eR16G16B16A16Snorm,
+        vk::Format::eR16G16B16A16Sint,
+        vk::Format::eR32Uint,
+        vk::Format::eR32Sfloat,
+        vk::Format::eR32Sint,
+        vk::Format::eR32G32Uint,
+        vk::Format::eR32G32Sfloat,
+        vk::Format::eR32G32Sint,
+        vk::Format::eR32G32B32A32Uint,
+        vk::Format::eR32G32B32A32Sfloat,
+        vk::Format::eR32G32B32A32Sint,
+        vk::Format::eD16Unorm,
+        vk::Format::eD32Sfloat,
+        vk::Format::eD24UnormS8Uint,
+        vk::Format::eD32SfloatS8Uint,
+    };
+    
+    [[nodiscard]] constexpr vk::Format ToVkFormat(const DnmGL::ImageFormat format) noexcept {
+        return VkImageFormatMap[static_cast<uint8_t>(format)];
+    }
+
+    static constexpr vk::Format VkVertexFormatMap[] {
+        vk::Format::eUndefined,
+        vk::Format::eR8Uint,
+        vk::Format::eR8G8Uint,
+        vk::Format::eR8G8B8A8Uint,
+        vk::Format::eR8Sint,
+        vk::Format::eR8G8Sint,
+        vk::Format::eR8G8B8A8Sint,
+        vk::Format::eR8Unorm,
+        vk::Format::eR8G8Unorm,
+        vk::Format::eR8G8B8A8Unorm,
+        vk::Format::eR8Snorm,
+        vk::Format::eR8G8Snorm,
+        vk::Format::eR8G8B8A8Snorm,
+        vk::Format::eR16Uint,
+        vk::Format::eR16G16Uint,
+        vk::Format::eR16G16B16A16Uint,
+        vk::Format::eR16Sint,
+        vk::Format::eR16G16Sint,
+        vk::Format::eR16G16B16A16Sint,
+        vk::Format::eR16Unorm,
+        vk::Format::eR16G16Unorm,
+        vk::Format::eR16G16B16A16Unorm,
+        vk::Format::eR16Snorm,
+        vk::Format::eR16G16Snorm,
+        vk::Format::eR16G16B16A16Snorm,
+        vk::Format::eR16Sfloat,
+        vk::Format::eR16G16Sfloat,
+        vk::Format::eR16G16B16A16Sfloat,
+        vk::Format::eR32Uint,
+        vk::Format::eR32G32Uint,
+        vk::Format::eR32G32B32Uint,
+        vk::Format::eR32G32B32A32Uint,
+        vk::Format::eR32Sint,
+        vk::Format::eR32G32Sint,
+        vk::Format::eR32G32B32Sint,
+        vk::Format::eR32G32B32A32Sint,
+        vk::Format::eR32Sfloat,
+        vk::Format::eR32G32Sfloat,
+        vk::Format::eR32G32B32Sfloat,
+        vk::Format::eR32G32B32A32Sfloat,
+    };
+
+    [[nodiscard]] constexpr vk::Format ToVkFormat(const DnmGL::VertexFormat format) noexcept {
+        return VkVertexFormatMap[static_cast<uint8_t>(format)];
+    }
+}

@@ -1,0 +1,20 @@
+#define ReadonlyBuffer \
+    StructuredBuffer
+
+#define WritableBuffer \
+    RWStructuredBuffer
+
+#define UniformBuffer() \
+    cbuffer
+
+#define PushConstant \
+    [[vk::push_constant]]
+
+#define ReadonlyImage \
+    Texture2D
+
+#define Sampler \
+    SamplerState
+
+#define WritableImage \
+    RWTexture2D
