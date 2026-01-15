@@ -363,7 +363,7 @@ namespace DnmGL::Vulkan {
             }
         }
         else {
-            static_assert((_os != OS::eMac) || (_os != OS::eIos), "mac and ios don't supported");
+            static_assert((_os != OS::eMac) || (_os != OS::eIos), "mac and ios don't support yet");
         }
 
         if constexpr (_debug) extensions.emplace_back("VK_EXT_debug_utils");
@@ -376,7 +376,7 @@ namespace DnmGL::Vulkan {
         application_info.setApplicationVersion(VK_MAKE_VERSION(0, 1, 0))
                         .setApiVersion(VK_API_VERSION_1_1)
                         .setEngineVersion(VK_MAKE_VERSION(0, 1, 0))
-                        .setPEngineName("Dnm Engine")
+                        .setPEngineName("DnmGL")
                         .setPApplicationName("dnm");
 
         std::vector<vk::ValidationFeatureEnableEXT> enabled_features = {
@@ -385,8 +385,7 @@ namespace DnmGL::Vulkan {
         };
 
         vk::ValidationFeaturesEXT validataion_features{};
-        validataion_features.setEnabledValidationFeatures(enabled_features)
-            ;
+        validataion_features.setEnabledValidationFeatures(enabled_features);
 
         vk::DebugUtilsMessengerCreateInfoEXT debug_create_info{};
         debug_create_info.setMessageSeverity(
@@ -397,7 +396,7 @@ namespace DnmGL::Vulkan {
                                         | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
                                         | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
             .setPfnUserCallback(DebugCallback)
-            //.setPNext(&validataion_features)
+            .setPNext(&validataion_features)
             ;
         
         vk::InstanceCreateInfo instance_create_info;
