@@ -15,7 +15,7 @@
 #include <array>
 
 constexpr DnmGL::Uint2 WindowExtent = {1280, 720};
-constexpr DnmGL::SampleCount MsaaValue = DnmGL::SampleCount::e2;
+constexpr DnmGL::SampleCount MsaaValue = DnmGL::SampleCount::e1;
 
 constexpr DnmGL::Float2 spaceship_scale = {0.1, 0.1};
 constexpr DnmGL::Float2 enemy_spaceship_scale = {0.1, 0.1};
@@ -100,6 +100,12 @@ public:
     Object(ObjectType obj_type, DnmGL::Float2 pos) 
     : m_pos(pos), m_obj_type(obj_type) {
         m_handle = global_sprite_manager->CreateSprite(sprite_template[int(obj_type)]).value();
+        ++createdObjectCount;
+    }
+
+    Object(DnmGL::CommandBuffer *command_buffer, ObjectType obj_type, DnmGL::Float2 pos) 
+    : m_pos(pos), m_obj_type(obj_type) {
+        m_handle = global_sprite_manager->CreateSprite(command_buffer, sprite_template[int(obj_type)]);
         ++createdObjectCount;
     }
 
@@ -191,7 +197,7 @@ int main(int argc, char** args) {
             .atlas_texture_subresource = {},
             .extent = WindowExtent,
             .msaa = MsaaValue,
-            .init_capacity = 1024 * 512,
+            .init_capacity = 256,
             .color_blend = true
         });
 
@@ -235,46 +241,47 @@ int main(int argc, char** args) {
                     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
                         player.m_pos.x +=-spaceship_speed;
                 }
-
-                if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-                    auto handle = bullets.AddElement(Object(ObjectType::eBullet, player.m_pos + DnmGL::Float2{0, 0.1}));
-                    bullets.GetElement(handle).m_object_handle = handle;
-                }
-                if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-                    auto handle = enemys.AddElement(Object(ObjectType::eEnemySpaceship, DnmGL::Float2{0, 1}));
-                    enemys.GetElement(handle).m_object_handle = handle;
-                }
-                if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-                    for (auto& enemy : enemys) {
-                        auto handle = bullets.AddElement(Object(ObjectType::eEnemyBullet, enemy.m_pos - DnmGL::Float2{0, 0.1}));
-                        bullets.GetElement(handle).m_object_handle = handle;
-                    }
-                }
-                context->WaitForGPU();
-
-                player.UpdatePos();
-
-                for (auto& object : enemys) {
-                    object.m_pos.y += enemy_speed;
-                    if (object.m_pos.y < -1) {
-                        m_deleted_enemys.emplace_back(object.m_object_handle);
-                    }
-                    object.UpdatePos();
-                }
-                for (auto& object : bullets) {
-                    object.m_pos.y += speeds[int(object.m_obj_type)];
-                    if (object.m_obj_type == ObjectType::eBullet 
-                    && object.m_pos.y > 1) {
-                        m_deleted_bullets.emplace_back(object.m_object_handle);
-                    }
-                    else if (object.m_obj_type == ObjectType::eEnemyBullet 
-                    && object.m_pos.y < -1) {
-                        m_deleted_bullets.emplace_back(object.m_object_handle);
-                    }
-                    object.UpdatePos();
-                }
     
                 context->Render([&] (DnmGL::CommandBuffer* command_buffer) -> bool {
+                    command_buffer->BeginCopyPass();
+                    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+                        auto handle = bullets.AddElement(Object(command_buffer, ObjectType::eBullet, player.m_pos + DnmGL::Float2{0, 0.1}));
+                        bullets.GetElement(handle).m_object_handle = handle;
+                    }
+                    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+                        auto handle = enemys.AddElement(Object(command_buffer,ObjectType::eEnemySpaceship, DnmGL::Float2{0, 1}));
+                        enemys.GetElement(handle).m_object_handle = handle;
+                    }
+                    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+                        for (auto& enemy : enemys) {
+                            auto handle = bullets.AddElement(Object(command_buffer,ObjectType::eEnemyBullet, enemy.m_pos - DnmGL::Float2{0, 0.1}));
+                            bullets.GetElement(handle).m_object_handle = handle;
+                        }
+                    }
+                    command_buffer->EndCopyPass();
+                    
+                    player.UpdatePos();
+
+                    for (auto& object : enemys) {
+                        object.m_pos.y += enemy_speed;
+                        if (object.m_pos.y < -1) {
+                            m_deleted_enemys.emplace_back(object.m_object_handle);
+                        }
+                        object.UpdatePos();
+                    }
+                    for (auto& object : bullets) {
+                        object.m_pos.y += speeds[int(object.m_obj_type)];
+                        if (object.m_obj_type == ObjectType::eBullet 
+                        && object.m_pos.y > 1) {
+                            m_deleted_bullets.emplace_back(object.m_object_handle);
+                        }
+                        else if (object.m_obj_type == ObjectType::eEnemyBullet 
+                        && object.m_pos.y < -1) {
+                            m_deleted_bullets.emplace_back(object.m_object_handle);
+                        }
+                        object.UpdatePos();
+                    }
+
                     sprite_manager.BeginSpriteRendering(command_buffer, {0, 0, 0, 0}, nullptr);
 
                     command_buffer->SetScissor({WindowExtent.x, WindowExtent.y}, {0, 0});

@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cmake",
+            "label": "Build (debug)",
+            "command": "build",
+            "preset": "debug",
+            "problemMatcher": []
+        },
+        {
+            "type": "cmake",
+            "label": "Build (release)",
+            "command": "build",
+            "preset": "release",
+            "problemMatcher": []
+        }
+    ]
+}

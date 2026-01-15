@@ -152,7 +152,7 @@ namespace DnmGL {
         }
 
         [[nodiscard]] auto GetSpriteCount() const { return m_sprite_count; }
-        [[nodiscard]] auto GetCapacity() const { return m_sprite_buffer->GetDesc().size; }
+        [[nodiscard]] auto GetCapacity() const { return m_sprite_buffer->GetDesc().size / sizeof(SpriteData); }
 
         [[nodiscard]] auto* GetSpriteBuffer() const { return m_sprite_buffer.get(); }
         [[nodiscard]] auto* GetGraphicsPipeline() const  { return m_graphics_pipeline.get(); }
