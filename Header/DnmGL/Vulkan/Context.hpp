@@ -84,7 +84,7 @@ namespace DnmGL::Vulkan {
     public:
         struct InternalImageLayoutTranslation {
             vk::Image image;
-            vk::ImageAspectFlags aspect;
+            bool has_stencil;
             vk::ImageLayout layout;
         };
 
@@ -149,6 +149,7 @@ namespace DnmGL::Vulkan {
         };
         
         struct DeviceFeatures {
+            vk::SampleCountFlags supported_samples;
             vk::QueueFlags queue_flags;
             uint32_t timestamp_valid_bits;
             uint32_t queue_family;
@@ -161,12 +162,12 @@ namespace DnmGL::Vulkan {
             return GraphicsBackend::eVulkan;
         }
 
-        void Init(const ContextDesc&) override;
+        void IInit(const ContextDesc&) override;
+        void ISetSwapchainSettings(const SwapchainSettings& settings) override;
 
         void ExecuteCommands(const std::function<bool(DnmGL::CommandBuffer*)>& func) override;
         void Render(const std::function<bool(DnmGL::CommandBuffer*)>& func) override;
         void WaitForGPU() override;
-        void SetSwapchainSettings(const SwapchainSettings& settings) override;
         
         [[nodiscard]] std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc&) noexcept override;
         [[nodiscard]] std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc&) noexcept override;
@@ -198,6 +199,7 @@ namespace DnmGL::Vulkan {
         [[nodiscard]] constexpr auto GetEmptySet() const noexcept { return m_empty_set; }
         [[nodiscard]] constexpr const auto& GetDispatcher() const noexcept { return dispatcher; }
         [[nodiscard]] DnmGL::ContextState GetContextState() noexcept override;
+        [[nodiscard]] vk::SampleCountFlagBits GetSampleCount(DnmGL::SampleCount sample_count, bool has_stencil) const noexcept;
 
         vk::Framebuffer GetOrCreateFramebuffer(vk::RenderPass renderpass) noexcept;
         void ReCreateFramebuffersForSwapchainChanges() noexcept;
@@ -362,5 +364,46 @@ namespace DnmGL::Vulkan {
         }
         
         defer_vulkan_obj_delete.clear();
+    }
+
+    inline vk::SampleCountFlagBits Context::GetSampleCount(DnmGL::SampleCount sample_count, bool has_stencil) const noexcept {
+        const auto properties = m_physical_device.getProperties();
+        //framebuffer and sampled support same
+        //color and stencil support same
+        vk::SampleCountFlags supported_samples = properties.limits.framebufferColorSampleCounts;
+        if (has_stencil) supported_samples |= properties.limits.framebufferStencilSampleCounts;
+        //TODO: check integer format and storage buffer msaa support
+
+        switch (sample_count) {
+            case SampleCount::e1: return vk::SampleCountFlagBits::e1;
+            case SampleCount::e2:
+                if (vk::SampleCountFlagBits::e2 & supported_samples) {
+                    return vk::SampleCountFlagBits::e2;
+                }
+                else if (vk::SampleCountFlagBits::e4 & supported_samples) {
+                    return vk::SampleCountFlagBits::e4;
+                }
+            case SampleCount::e4:
+                if (vk::SampleCountFlagBits::e4 & supported_samples) {
+                    return vk::SampleCountFlagBits::e4;
+                }
+                else if (vk::SampleCountFlagBits::e8 & supported_samples) {
+                    return vk::SampleCountFlagBits::e8;
+                }
+                else if (vk::SampleCountFlagBits::e2 & supported_samples) {
+                    return vk::SampleCountFlagBits::e2;
+                }
+            case SampleCount::e8:
+                if (vk::SampleCountFlagBits::e8 & supported_samples) {
+                    return vk::SampleCountFlagBits::e8;
+                }
+                else if (vk::SampleCountFlagBits::e4 & supported_samples) {
+                    return vk::SampleCountFlagBits::e4;
+                }
+                else if (vk::SampleCountFlagBits::e2 & supported_samples) {
+                    return vk::SampleCountFlagBits::e2;
+                }
+        }
+        return vk::SampleCountFlagBits::e1;
     }
 }

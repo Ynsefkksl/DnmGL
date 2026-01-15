@@ -15,13 +15,13 @@
 #include <stdexcept>
 #include <variant>
 #include <filesystem>
+#include <fstream>
 #include <unordered_set>
 #include <source_location>
 #include <ranges>
 #include <map>
 #include <set>
 
-//TODO: write msaa fallback
 //TODO: vulkan supported feature override
 //TODO: test offline rendering
 namespace DnmGL {
@@ -394,7 +394,6 @@ namespace DnmGL {
         e2 = 1 << 1,
         e4 = 1 << 2,
         e8 = 1 << 3,
-        e16 = 1 << 4,
     };
 
     enum class BufferUsageBits : uint8_t {
@@ -730,17 +729,16 @@ namespace DnmGL {
                             
     inline WindowType GetWindowType(const WindowHandle& handle) {
         switch (handle.index()) {
-            case 1: return WindowType::eWindows; break;
-            case 2: return WindowType::eMac; break;
-            case 3: return WindowType::eIos; break;
-            case 4: return WindowType::eWayland; break;
-            case 5: return WindowType::eAndroid; break;
-            case 6: return WindowType::eX11; break;
+            case 1: return WindowType::eWindows;
+            case 2: return WindowType::eMac;
+            case 3: return WindowType::eIos;
+            case 4: return WindowType::eWayland;
+            case 5: return WindowType::eAndroid;
+            case 6: return WindowType::eX11;
         }
         return WindowType::eNone;
     }
 
-    
     struct SwapchainSettings {
         Uint2 window_extent = {1, 1};
         //eUndefined no depth buffer
@@ -748,7 +746,7 @@ namespace DnmGL {
         SampleCount msaa = SampleCount::e1;
         bool Vsync;
 
-        bool operator<=>(const SwapchainSettings&) const = default;
+        bool operator<=>(const SwapchainSettings &) const = default;
     };
 
     struct ContextDesc {
@@ -765,13 +763,14 @@ namespace DnmGL {
 
         [[nodiscard]] virtual GraphicsBackend GetGraphicsBackend() const noexcept = 0;
 
-        virtual void Init(const ContextDesc&) = 0;
+        void Init(const ContextDesc &);
+        void SetSwapchainSettings(const SwapchainSettings &settings);
+
         //offline rendering
         virtual void ExecuteCommands(const std::function<bool(CommandBuffer*)>& func) = 0;
         //ExecuteCommands + present image
         virtual void Render(const std::function<bool(CommandBuffer*)>& func) = 0;
         virtual void WaitForGPU() = 0;
-        virtual void SetSwapchainSettings(const SwapchainSettings& settings) = 0;
 
         [[nodiscard]] virtual std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc&) noexcept = 0;
         [[nodiscard]] virtual std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc&) noexcept = 0;
@@ -796,6 +795,9 @@ namespace DnmGL {
             if (callback_func) callback_func(message, error, source);
         };
     protected:
+        virtual void IInit(const ContextDesc&) = 0;
+        virtual void ISetSwapchainSettings(const SwapchainSettings &settings) = 0;
+
         DnmGL::Image *placeholder_image{};
         DnmGL::Sampler *placeholder_sampler{};
         CallbackFunc callback_func{};
@@ -1311,6 +1313,34 @@ namespace DnmGL {
             DnmGLAssert((m_desc.extent.y == 1 && m_desc.extent.z == 1), 
                                 "type if ImageType::e1D, x and z extent is must be 1 (1D arrays not supported)")
         }
+    }
+
+    inline void Context::Init(const ContextDesc &desc) {
+        //TODO: make for other os'es
+        if constexpr (_os == OS::eWin) {
+            //TODO: write error massage
+            DnmGLAssert(GetWindowType(desc.window_handle) == WindowType::eWindows,
+                "");
+            const auto win_handle = std::get<WinWindowHandle>(desc.window_handle);
+            DnmGLAssert(win_handle.hInstance, "WinWindowHandle::hInstance cannot nullptr");
+            DnmGLAssert(win_handle.hwnd, "WinWindowHandle::hwnd cannot nullptr");
+        }
+        
+        DnmGLAssert(IsDepthFormat(desc.swapchain_settings.depth_buffer_format), 
+            "depth buffer format must be ImageFormat::eD16Norm or ImageFormat::eD32Float");
+        DnmGLAssert(desc.swapchain_settings.window_extent.x && desc.swapchain_settings.window_extent.y, 
+                "extent values must be bigger than zero")
+
+        IInit(desc);
+    }
+
+    inline void Context::SetSwapchainSettings(const SwapchainSettings &settings) {
+        DnmGLAssert(IsDepthFormat(settings.depth_buffer_format), 
+            "depth buffer format must be ImageFormat::eD16Norm or ImageFormat::eD32Float");
+        DnmGLAssert(settings.window_extent.x && settings.window_extent.y, 
+                "extent values must be bigger than zero")
+
+        ISetSwapchainSettings(settings);
     }
 
     constexpr GraphicsPipeline::GraphicsPipeline(Context& ctx, const GraphicsPipelineDesc& desc) noexcept

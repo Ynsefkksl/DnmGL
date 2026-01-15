@@ -72,7 +72,7 @@ namespace DnmGL::Vulkan {
                     .setArrayLayers((m_desc.type == ImageType::e2D) ? m_desc.extent.z : 1u)
                     .setExtent(vk::Extent3D(m_desc.extent.x, m_desc.extent.y, (m_desc.type == ImageType::e3D) ? 1 : m_desc.extent.z))
                     .setFlags(flags)
-                    .setSamples(static_cast<vk::SampleCountFlagBits>(desc.sample_count))
+                    .setSamples(VulkanContext->GetSampleCount(desc.sample_count, bool(m_aspect & vk::ImageAspectFlagBits::eStencil)))
                     .setSharingMode(vk::SharingMode::eExclusive)
                     .setTiling(vk::ImageTiling::eOptimal)
                     .setUsage(GetVkUsageFlags(m_desc.usage_flags))

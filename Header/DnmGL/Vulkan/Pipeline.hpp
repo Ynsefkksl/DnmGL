@@ -12,6 +12,7 @@ namespace DnmGL::Vulkan {
         [[nodiscard]] std::span<const vk::DescriptorSet, 4> GetDstSets() const { return m_dst_sets; }
         [[nodiscard]] auto GetPipelineStageFlags() const { return m_pipeline_stage_flags; }
         [[nodiscard]] auto GetAccessFlags() const { return m_access_flags; }
+        [[nodiscard]] auto GetSampleCount() const { return m_sample_count; }
     protected:
         vk::Pipeline CreatePipeline(vk::RenderPass renderpass) noexcept;
 
@@ -20,6 +21,7 @@ namespace DnmGL::Vulkan {
 
         vk::PipelineStageFlags m_pipeline_stage_flags;
         vk::AccessFlags m_access_flags;
+        vk::SampleCountFlagBits m_sample_count;
     };
 
     class GraphicsPipelineDefaultVk final : public GraphicsPipelineBase {

@@ -75,6 +75,8 @@ namespace DnmGL::Vulkan {
 
             m_pipeline_layout = device.createPipelineLayout(create_info);
         }
+
+        m_sample_count = VulkanContext->GetSampleCount(m_desc.msaa, HasStencilAttachment());
     }
 
     GraphicsPipelineDynamicRendering::GraphicsPipelineDynamicRendering(Vulkan::Context& ctx, const DnmGL::GraphicsPipelineDesc& desc) noexcept 
@@ -124,7 +126,7 @@ namespace DnmGL::Vulkan {
                 attachment_descs.emplace_back(
                     vk::AttachmentDescriptionFlags{},
                     presenting ? VulkanContext->GetSwapchainProperties().format : ToVkFormat(m_desc.color_attachment_formats[i]),
-                    static_cast<vk::SampleCountFlagBits>(m_desc.msaa),
+                    GetSampleCount(),
                     vk::AttachmentLoadOp::eClear,
                     vk::AttachmentStoreOp::eDontCare,
                     vk::AttachmentLoadOp::eDontCare,
@@ -148,7 +150,7 @@ namespace DnmGL::Vulkan {
             attachment_descs.emplace_back(
                 vk::AttachmentDescriptionFlags{},
                 ToVkFormat(m_desc.depth_stencil_format),
-                static_cast<vk::SampleCountFlagBits>(m_desc.msaa),
+                GetSampleCount(),
                 ToVk(attachment_ops.depth_load),
                 ToVk(attachment_ops.depth_store),
                 ToVk(attachment_ops.stencil_load),
@@ -162,7 +164,7 @@ namespace DnmGL::Vulkan {
             attachment_descs.emplace_back(
                 vk::AttachmentDescriptionFlags{},
                 ToVkFormat(m_desc.depth_stencil_format),
-                static_cast<vk::SampleCountFlagBits>(m_desc.msaa),
+                GetSampleCount(),
                 ToVk(attachment_ops.depth_load),
                 ToVk(attachment_ops.depth_store),
                 vk::AttachmentLoadOp::eDontCare,
@@ -269,7 +271,7 @@ namespace DnmGL::Vulkan {
 
         vk::PipelineMultisampleStateCreateInfo multisample_Info{};
         multisample_Info.setSampleShadingEnable(vk::False)
-                        .setRasterizationSamples(static_cast<vk::SampleCountFlagBits>(m_desc.msaa))
+                        .setRasterizationSamples(m_sample_count)
                         .setMinSampleShading(1.f)
                         ;
 

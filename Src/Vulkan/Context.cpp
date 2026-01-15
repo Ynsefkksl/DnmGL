@@ -327,7 +327,7 @@ namespace DnmGL::Vulkan {
         m_instance.destroy();
     }
     
-    void Context::Init(const ContextDesc& desc) {
+    void Context::IInit(const ContextDesc& desc) {
         m_swapchain_settings = desc.swapchain_settings;
         shader_directory = desc.shader_directory;
         CreateInstance(GetWindowType(desc.window_handle));
@@ -433,7 +433,6 @@ namespace DnmGL::Vulkan {
     }
     
     void Context::CreateSurface(const WindowHandle& window_handle) {
-        auto win_type = GetWindowType(window_handle);
         auto win_handle = std::get<WinWindowHandle>(window_handle);
 
         vk::Win32SurfaceCreateInfoKHR create_info{};
@@ -860,7 +859,7 @@ namespace DnmGL::Vulkan {
         return it->second[m_image_index];
     }
 
-    void Context::SetSwapchainSettings(const SwapchainSettings& new_settings) {
+    void Context::ISetSwapchainSettings(const SwapchainSettings& new_settings) {
         const bool Vsync_change = m_swapchain_settings.Vsync != new_settings.Vsync;
         const bool extent_change = m_swapchain_settings.window_extent != new_settings.window_extent;
         const bool msaa_change = m_swapchain_settings.msaa != new_settings.msaa;

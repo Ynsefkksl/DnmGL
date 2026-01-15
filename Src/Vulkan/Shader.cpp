@@ -2,8 +2,6 @@
 
 #include <spirv_reflect.h>
 
-#include <fstream>
-
 namespace DnmGL::Vulkan {
     static std::vector<uint32_t> LoadShaderFile(const std::filesystem::path& filePath) {
         std::ifstream file(filePath, std::ios::ate | std::ios::binary);
