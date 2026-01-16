@@ -30,6 +30,26 @@ namespace DnmGL::Vulkan {
         }
     }
 
+    static constexpr DnmGL::ShaderStageBits GetShaderStage(SpvReflectShaderStageFlagBits spv_stage) {
+        switch (spv_stage) {
+            case SPV_REFLECT_SHADER_STAGE_VERTEX_BIT: return ShaderStageBits::eVertex;
+            case SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT: return ShaderStageBits::eFragment;
+            case SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT: return ShaderStageBits::eCompute;
+
+            case SPV_REFLECT_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
+            case SPV_REFLECT_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:
+            case SPV_REFLECT_SHADER_STAGE_GEOMETRY_BIT:
+            case SPV_REFLECT_SHADER_STAGE_TASK_BIT_NV:
+            case SPV_REFLECT_SHADER_STAGE_MESH_BIT_NV:
+            case SPV_REFLECT_SHADER_STAGE_RAYGEN_BIT_KHR:
+            case SPV_REFLECT_SHADER_STAGE_ANY_HIT_BIT_KHR:
+            case SPV_REFLECT_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+            case SPV_REFLECT_SHADER_STAGE_MISS_BIT_KHR:
+            case SPV_REFLECT_SHADER_STAGE_INTERSECTION_BIT_KHR:
+            case SPV_REFLECT_SHADER_STAGE_CALLABLE_BIT_KHR: return ShaderStageBits::eNone;
+        }
+    }
+
     Shader::Shader(Vulkan::Context& ctx, std::string_view filename)
         : DnmGL::Shader(ctx, filename) {
         //create shader reflection
@@ -59,7 +79,9 @@ namespace DnmGL::Vulkan {
             entry_point_info.name = entry_point_name;
             vk_entry_point_info.stage = static_cast<vk::ShaderStageFlagBits>(reflection.GetEntryPointShaderStage(entry_index));
                                             //same bit with vulkan
-            entry_point_info.shader_stage = static_cast<DnmGL::ShaderStageBits>(reflection.GetEntryPointShaderStage(entry_index));
+            entry_point_info.shader_stage = GetShaderStage(reflection.GetEntryPointShaderStage(entry_index));
+            DnmGLAssert(entry_point_info.shader_stage != ShaderStageBits::eNone, 
+                "unsupported shader stage; entry point: {}, stage: {}", entry_point_name, vk::to_string(vk_entry_point_info.stage));
 
             // Readonly resource
             {

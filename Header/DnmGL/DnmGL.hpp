@@ -23,6 +23,7 @@
 #include <set>
 
 //TODO: vulkan supported feature override
+//TODO: support VK_KHR_imageless_framebuffer
 //TODO: test offline rendering
 namespace DnmGL {
     class Context;
@@ -374,6 +375,7 @@ namespace DnmGL {
     };
 
     enum class ResourceType : uint8_t {
+        eNone,
         eReadonlyBuffer,
         eReadonlyImage,
         eWritableBuffer,
@@ -415,16 +417,11 @@ namespace DnmGL {
     };
     using ImageUsageFlags = Flags<ImageUsageBits>;
 
-    //same with vulkan
     enum class ShaderStageBits : uint32_t {
+        eNone = 0x0,
         eVertex = 0x1,
-        eTessellationControl = 0x2,
-        eTessellationEvaluation = 0x4,
-        eGeometry = 0x8,
-        eFragment = 0x10,
-        eCompute = 0x20,
-        eAllGraphics = 0x1f,
-        eAll = 0x7FFFFFFF,
+        eFragment = 0x2,
+        eCompute = 0x4,
     };
     using ShaderStageFlags = Flags<ShaderStageBits>;
 

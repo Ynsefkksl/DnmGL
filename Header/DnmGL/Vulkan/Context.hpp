@@ -37,6 +37,7 @@ namespace DnmGL::Vulkan {
     class ComputePipeline;
     class Sampler;
     class FramebufferBase;
+    class FramebufferDynamicRendering;
 
     // images must be this layout except for copy or transfer commands  
     inline vk::ImageLayout GetIdealImageLayout(DnmGL::ImageUsageFlags flags) {
@@ -72,12 +73,26 @@ namespace DnmGL::Vulkan {
         }
     };
     
-    [[nodiscard]] inline constexpr vk::AttachmentLoadOp ToVk(AttachmentLoadOp v) noexcept {
+    [[nodiscard]] constexpr vk::AttachmentLoadOp ToVk(AttachmentLoadOp v) noexcept {
         return static_cast<vk::AttachmentLoadOp>(v);
     }
 
-    [[nodiscard]] inline constexpr vk::AttachmentStoreOp ToVk(AttachmentStoreOp v) noexcept {
+    [[nodiscard]] constexpr vk::AttachmentStoreOp ToVk(AttachmentStoreOp v) noexcept {
         return static_cast<vk::AttachmentStoreOp>(v);
+    }
+
+    [[nodiscard]] constexpr vk::ShaderStageFlags ToVk(ShaderStageFlags v) noexcept {
+        vk::ShaderStageFlags out{}; 
+        if (v.Has(ShaderStageBits::eVertex)) {
+            out |= vk::ShaderStageFlagBits::eVertex;
+        }
+        if (v.Has(ShaderStageBits::eFragment)) {
+            out |= vk::ShaderStageFlagBits::eFragment;
+        }
+        if (v.Has(ShaderStageBits::eCompute)) {
+            out |= vk::ShaderStageFlagBits::eCompute;
+        }
+        return out;
     }
 
     class Context final : public DnmGL::Context {

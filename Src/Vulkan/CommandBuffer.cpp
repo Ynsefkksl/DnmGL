@@ -275,7 +275,7 @@ namespace DnmGL::Vulkan {
         const auto* typed_pipeline = static_cast<const GraphicsPipelineBase *>(pipeline);
         command_buffer.pushConstants(
             typed_pipeline->GetPipelineLayout(), 
-            static_cast<vk::ShaderStageFlags>((uint32_t)pipeline_stage),
+            ToVk(pipeline_stage),
             offset, 
             size, 
             ptr);

@@ -10,16 +10,14 @@
 #include "DnmGL/Vulkan/Framebuffer.hpp"
 #include "DnmGL/Vulkan/Sampler.hpp"
 #include "DnmGL/Vulkan/ToVkFormat.hpp"
-#include <format>
-#include <print>
-
-#include <vulkan/vulkan_profiles.hpp>
 
 #include <algorithm>
 #include <cstdint>
 #include <print>
 #include <string>
 #include <vector>
+#include <format>
+#include <print>
 
 #define DISPATCH_VK_FUNC(func_name) dispatcher.func_name = reinterpret_cast<PFN_##func_name>(m_instance.getProcAddr(#func_name))
 

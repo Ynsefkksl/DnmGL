@@ -8,7 +8,9 @@
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_BUILD_TYPE": "Debug",
-                "Examples" : true
+                "Examples" : true,
+                "Vulkan" : true,
+                "D3D12" : true
             }
         },
         {
@@ -18,7 +20,9 @@
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_BUILD_TYPE": "Release",
-                "Examples" : true
+                "Examples" : true,
+                "Vulkan" : true,
+                "D3D12" : true
             }
         }
     ],

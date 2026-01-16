@@ -14,6 +14,9 @@
 #include <print>
 #include <array>
 
+constexpr std::string_view VulkanPath = "../Vulkan/DnmGL_Vulkan";
+constexpr std::string_view D3D12Path = "../D3D12/DnmGL_D3D12";
+
 constexpr DnmGL::Uint2 WindowExtent = {1280, 720};
 constexpr DnmGL::SampleCount MsaaValue = DnmGL::SampleCount::e1;
 
@@ -126,6 +129,11 @@ public:
 };
 
 int main(int argc, char** args) {
+    bool use_d3d12 = false;
+    if (argc > 1)
+        if (std::string(args[1]) == "D3D12")
+            use_d3d12 = true;
+
     if (!glfwInit())
         return -1;
 
@@ -138,7 +146,7 @@ int main(int argc, char** args) {
     }
 
     try {
-        DnmGL::ContextLoader ctx_loader("../Vulkan/DnmGL_Vulkan");
+        DnmGL::ContextLoader ctx_loader(use_d3d12 ? D3D12Path : VulkanPath);
         auto* context = ctx_loader.GetContext();
 
         DnmGLAssert(context, "context is null!!!")
