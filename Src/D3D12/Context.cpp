@@ -71,13 +71,8 @@ namespace DnmGL::D3D12 {
             if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller)))) {
                 debug_controller->EnableDebugLayer();
             }
-    
-            ComPtr<ID3D12Debug1> debug1;
-            if (SUCCEEDED(debug_controller.As(&debug1))) {
-                debug1->SetEnableGPUBasedValidation(TRUE);
-            }
         }
-
+        
         ComPtr<IDXGIFactory6> factory;
         if (auto hr = CreateDXGIFactory2(_debug * DXGI_CREATE_FACTORY_DEBUG,
                             __uuidof(IDXGIFactory6),
@@ -118,14 +113,14 @@ namespace DnmGL::D3D12 {
         swapchain_desc.SampleDesc.Count = 1;
         swapchain_desc.Windowed = TRUE;
         swapchain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-
+        
         ComPtr<IDXGISwapChain> swapchain;
         factory->CreateSwapChain(
             m_command_queue.Get(),
             &swapchain_desc,
             &swapchain
-            );
-
+        );
+        
         swapchain.As(&m_swapchain);
 
         factory->MakeWindowAssociation(HWND(window_handle.hwnd), DXGI_MWA_NO_ALT_ENTER);
@@ -234,8 +229,12 @@ namespace DnmGL::D3D12 {
         m_command_buffer->End();
 
         ID3D12CommandList *const command_lists[1] = { m_command_buffer->GetCommandList() };
+        auto start = std::chrono::high_resolution_clock::now();
         m_command_queue->ExecuteCommandLists(1, command_lists);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float, std::milli> duration = end - start;
 
+        std::println("duration: {}ms", duration.count());
         m_swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
         m_command_queue->Signal(m_fence.Get(), m_fence_value++);
 
