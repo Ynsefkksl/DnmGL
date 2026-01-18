@@ -843,7 +843,7 @@ namespace DnmGL::Vulkan {
         });
 
         placeholder_sampler = new DnmGL::Vulkan::Sampler(*this, {
-            .compare_op = DnmGL::CompareOp::eNever,
+            .compare_op = DnmGL::CompareOp::eNone,
             .filter = DnmGL::SamplerFilter::eNearest
         });
     }

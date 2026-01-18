@@ -82,6 +82,9 @@ namespace DnmGL::D3D12 {
         [[nodiscard]] constexpr auto GetSamplerDescriptorSize() const noexcept { return m_rtv_descriptor_size; }
         [[nodiscard]] constexpr auto GetCBV_SRV_UAVDescriptorSize() const noexcept { return m_rtv_descriptor_size; }
         [[nodiscard]] constexpr auto GetFrameIndex() const noexcept { return m_frame_index; }
+        [[nodiscard]] constexpr auto GetRenderTargets() const noexcept { return std::span(m_render_targets); }
+        [[nodiscard]] constexpr auto *GetDepthImage() const noexcept { return m_depth_buffer; }
+        [[nodiscard]] constexpr auto *GetDSVheap() const noexcept { return m_dsv_heap.Get(); }
 
         [[nodiscard]] constexpr auto GetDeviceFeatures() const noexcept { return m_device_features; }
 
@@ -110,6 +113,7 @@ namespace DnmGL::D3D12 {
         ComPtr<ID3D12CommandQueue> m_command_queue;
         ComPtr<ID3D12RootSignature> m_root_signature;
         ComPtr<ID3D12DescriptorHeap> m_rtv_heap;
+        ComPtr<ID3D12DescriptorHeap> m_dsv_heap;
         ComPtr<ID3D12PipelineState> m_pipeline_state;
         ComPtr<ID3D12Fence> m_fence;
         D3D12MA::Allocator *m_allocator;
@@ -120,6 +124,7 @@ namespace DnmGL::D3D12 {
         uint32_t m_CBV_SRV_UAV_descriptor_size{};
         uint32_t m_frame_index{};
         uint64_t m_fence_value{};
+        D3D12::Image *m_depth_buffer;
         ContextState context_state = ContextState::eNone;
         bool m_vsync;
     };

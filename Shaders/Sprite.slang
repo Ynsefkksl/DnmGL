@@ -33,6 +33,7 @@ struct Sprite {
     float2 scale;
     float angle;
     float color_factor;
+    float padding[2];
 };
 
 ReadonlyBuffer<Sprite> sprite_buffer : register(t0);

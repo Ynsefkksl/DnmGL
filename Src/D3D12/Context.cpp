@@ -7,6 +7,7 @@
 #include "DnmGL/D3D12/Sampler.hpp"
 #include "DnmGL/D3D12/ResourceManager.hpp"
 #include "DnmGL/D3D12/Framebuffer.hpp"
+#include "DnmGL/D3D12/ToDxgiFormat.hpp"
 
 extern "C" __declspec(dllexport) DnmGL::Context* LoadContext() {
     return new DnmGL::D3D12::Context();
@@ -46,6 +47,8 @@ namespace DnmGL::D3D12 {
 
         CloseHandle(m_fence_event);
 
+        delete m_depth_buffer;
+
         delete placeholder_image;
         delete placeholder_sampler;
         delete m_command_buffer;
@@ -55,6 +58,8 @@ namespace DnmGL::D3D12 {
     }
 
     void Context::IInit(const ContextDesc& desc) {
+        swapchain_settings = desc.swapchain_settings;
+        
         shader_directory = desc.shader_directory;
         if (GetWindowType(desc.window_handle) != DnmGL::WindowType::eWindows) {
             Message("window handle must be windows in d3d12 context, how did you do that?", MessageType::eInvalidBehavior);
@@ -112,7 +117,7 @@ namespace DnmGL::D3D12 {
         swapchain_desc.OutputWindow = HWND(window_handle.hwnd);
         swapchain_desc.SampleDesc.Count = 1;
         swapchain_desc.Windowed = TRUE;
-        swapchain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING ;
+        swapchain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 
         ComPtr<IDXGISwapChain> swapchain;
         factory->CreateSwapChain(
@@ -248,13 +253,13 @@ namespace DnmGL::D3D12 {
                 .mipmap_levels = 1,
             });
 
-            // m_depth_buffer = new DnmGL::Vulkan::Image(*this, {
-            //     .extent = {m_swapchain_properties.extent.width, m_swapchain_properties.extent.height, 1},
-            //     .format = DnmGL::ImageFormat::eD16Norm,
-            //     .usage_flags = DnmGL::ImageUsageBits::eDepthStencilAttachment | ImageUsageBits::eTransientAttachment,
-            //     .type = DnmGL::ImageType::e2D,
-            //     .mipmap_levels = 1
-            // });
+            m_depth_buffer = new DnmGL::D3D12::Image(*this, {
+                .extent = {swapchain_settings.window_extent.x, swapchain_settings.window_extent.y, 1},
+                .format = swapchain_settings.depth_buffer_format,
+                .usage_flags = DnmGL::ImageUsageBits::eDepthStencilAttachment | ImageUsageBits::eTransientAttachment,
+                .type = DnmGL::ImageType::e2D,
+                .mipmap_levels = 1
+            });
 
             const uint32_t pixel_data = -1;
             command_buffer->UploadData(placeholder_image, {}, std::span(&pixel_data, 1), {1,1,1}, 0);
@@ -262,9 +267,27 @@ namespace DnmGL::D3D12 {
         });
 
         placeholder_sampler = new DnmGL::D3D12::Sampler(*this, {
-            .compare_op = DnmGL::CompareOp::eNever,
+            .compare_op = DnmGL::CompareOp::eNone,
             .filter = DnmGL::SamplerFilter::eNearest
         });
+
+        D3D12_DESCRIPTOR_HEAP_DESC heap_desc{};
+        heap_desc.NumDescriptors = 1;
+        heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_dsv_heap));
+
+        D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc{};
+        dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        dsv_desc.Format = ToDxgiFormat(swapchain_settings.depth_buffer_format);
+        dsv_desc.Texture2D = D3D12_TEX2D_DSV {
+            0
+        };
+
+        m_device->CreateDepthStencilView(
+            m_depth_buffer->GetResource(), 
+            &dsv_desc, 
+            m_dsv_heap->GetCPUDescriptorHandleForHeapStart());
     }
     
     std::unique_ptr<DnmGL::Buffer> Context::CreateBuffer(const DnmGL::BufferDesc& desc) noexcept {

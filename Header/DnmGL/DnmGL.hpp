@@ -1289,8 +1289,9 @@ namespace DnmGL {
             DnmGLAssert(win_handle.hwnd, "WinWindowHandle::hwnd cannot nullptr");
         }
         
-        DnmGLAssert(IsDepthFormat(desc.swapchain_settings.depth_buffer_format), 
-            "depth buffer format must be ImageFormat::eD16Norm or ImageFormat::eD32Float");
+        if (desc.swapchain_settings.depth_buffer_format != ImageFormat::eUndefined)
+            DnmGLAssert(IsDepthFormat(desc.swapchain_settings.depth_buffer_format), 
+                "depth buffer format must be ImageFormat::eD16Norm, ImageFormat::eD32Float");
         DnmGLAssert(desc.swapchain_settings.window_extent.x && desc.swapchain_settings.window_extent.y, 
                 "extent values must be bigger than zero")
 
@@ -1471,8 +1472,8 @@ namespace DnmGL {
 
         if (desc.framebuffer) DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == desc.framebuffer->GetDesc().depth_stencil_format, 
                             "framebuffer and pipeline formats must be same")
-        else DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == ImageFormat::eD16Norm, 
-                            "if using default framebuffer, depth stencil attachment format ImageFormat::eD16Norm")
+        else DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == context->GetSwapchainSettings().depth_buffer_format, 
+                            "if using default framebuffer, depth stencil attachment format must same with GetSwapchainSettings().depth_buffer_format")
     }
 
     inline void ResourceManager::SetReadonlyResource(std::span<const ResourceDesc> update_resource) {

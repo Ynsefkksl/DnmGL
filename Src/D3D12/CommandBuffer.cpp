@@ -2,9 +2,37 @@
 #include "DnmGL/D3D12/Pipeline.hpp"
 #include "DnmGL/D3D12/Buffer.hpp"
 #include "DnmGL/D3D12/Image.hpp"
+#include "DnmGL/D3D12/ResourceManager.hpp"
 #include "DnmGL/D3D12/ToDxgiFormat.hpp"
 
 namespace DnmGL::D3D12 {
+    static constexpr D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE BeginingAccessType(AttachmentLoadOp load_op) {
+        switch (load_op) {
+            case AttachmentLoadOp::eLoad: return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
+            case AttachmentLoadOp::eClear: return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
+            case AttachmentLoadOp::eDontCare: return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+        }
+    }
+
+    static constexpr D3D12_RENDER_PASS_ENDING_ACCESS_TYPE EndingAccessType(AttachmentStoreOp store_op, bool msaa) {
+        if (msaa) return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_RESOLVE;
+        switch (store_op) {
+            case AttachmentStoreOp::eStore: return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
+            case AttachmentStoreOp::eDontCare: return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
+        }
+    }
+
+    static constexpr D3D12_PRIMITIVE_TOPOLOGY PrimativeTopology(PrimitiveTopology topology) {
+        switch (topology) {
+            case PrimitiveTopology::ePointList: return D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+            case PrimitiveTopology::eLineList: return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+            case PrimitiveTopology::eLineStrip: return D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+            case PrimitiveTopology::eTriangleList: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+            case PrimitiveTopology::eTriangleStrip: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+            case PrimitiveTopology::eTriangleFan: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLEFAN;
+        }
+    }
+
     CommandBuffer::CommandBuffer(D3D12::Context& ctx)
         : DnmGL::CommandBuffer(ctx) {
         D3D12Context->GetDevice()->CreateCommandList(
@@ -12,7 +40,7 @@ namespace DnmGL::D3D12 {
             D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT, 
             D3D12Context->GetCommandAllocator(), 
             nullptr, 
-            __uuidof(ID3D12GraphicsCommandList), 
+            __uuidof(ID3D12GraphicsCommandList10), 
             &m_command_list);
     }
 
@@ -376,6 +404,18 @@ namespace DnmGL::D3D12 {
         m_command_list->CopyTextureRegion(
             &dst, 0, 0, 0, 
             &src, &box);
+
+        //temp
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE::D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition = D3D12_RESOURCE_TRANSITION_BARRIER{
+            .pResource = typed_image->GetResource(),
+            .Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+            .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+            .StateAfter = typed_image->GetIdealState(),
+        };
+        m_command_list->ResourceBarrier(1, &barrier);
+        typed_image->m_state = typed_image->GetIdealState();
     }
 
     void CommandBuffer::IUploadData(DnmGL::Buffer *buffer, const void* data, uint32_t size, uint32_t offset) {
@@ -398,5 +438,113 @@ namespace DnmGL::D3D12 {
             .dst_offset = 0,
             .copy_size = size,
         });
+    }
+
+    void CommandBuffer::IBeginRendering(const BeginRenderingDesc& desc) {
+        const auto *typed_pipeline = static_cast<const GraphicsPipeline *>(desc.pipeline);
+        const auto *typed_resource_manager = static_cast<const ResourceManager *>(desc.pipeline->GetDesc().resource_manager);
+
+        std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> render_target_descs{};
+        D3D12_RENDER_PASS_DEPTH_STENCIL_DESC depth_stencil_desc{};
+        bool depth_stencil = false;
+
+        if (desc.framebuffer) {
+            DnmGLAssert(false, "framebuffer not implamented")
+        }
+        else {
+            auto *render_target= D3D12Context->GetRenderTarget(D3D12Context->GetFrameIndex());
+
+            const D3D12_RESOURCE_BARRIER resource_barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = {},
+                .Transition = {
+                    render_target,
+                    0,
+                    D3D12_RESOURCE_STATE_PRESENT,  
+                    D3D12_RESOURCE_STATE_RENDER_TARGET  
+                }
+            };
+            m_command_list->ResourceBarrier(1, &resource_barrier);
+
+            CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(D3D12Context->GetRTVHeap()->GetCPUDescriptorHandleForHeapStart());
+            cpu_handle.Offset(D3D12Context->GetFrameIndex(), D3D12Context->GetRTVDescriptorSize());
+
+            render_target_descs.emplace_back(
+                cpu_handle,
+                D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                    BeginingAccessType(desc.attachment_ops.color_load[0]),
+                    desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?D3D12_CLEAR_VALUE{
+                        .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+                        .Color{
+                            desc.color_clear_values[0].r,
+                            desc.color_clear_values[0].g,
+                            desc.color_clear_values[0].b,
+                            desc.color_clear_values[0].a
+                        }
+                    } : D3D12_CLEAR_VALUE{}
+                },
+                D3D12_RENDER_PASS_ENDING_ACCESS{
+                    EndingAccessType(desc.attachment_ops.color_store[0], desc.pipeline->HasMsaa()),
+                    desc.pipeline->HasMsaa() ?
+                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{} :
+                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+                }
+            );
+
+            depth_stencil_desc.cpuDescriptor = D3D12Context->GetDSVheap()->GetCPUDescriptorHandleForHeapStart();
+            depth_stencil_desc.DepthBeginningAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                    BeginingAccessType(desc.attachment_ops.depth_load),
+                    desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?
+                    D3D12_CLEAR_VALUE{
+                        .Format = DXGI_FORMAT_D16_UNORM,
+                        .DepthStencil {
+                            desc.depth_stencil_clear_value.depth,
+                            static_cast<uint8_t>(desc.depth_stencil_clear_value.stencil)
+                        }
+                    } : D3D12_CLEAR_VALUE{}
+                };
+            depth_stencil_desc.DepthEndingAccess = D3D12_RENDER_PASS_ENDING_ACCESS{
+                    EndingAccessType(desc.attachment_ops.depth_store, desc.pipeline->HasMsaa()),
+                        desc.pipeline->HasMsaa() ?
+                        D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{} :
+                        D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+                };
+            depth_stencil_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS;
+            depth_stencil_desc.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS;
+        }
+
+        m_command_list->BeginRenderPass(
+            render_target_descs.size(), 
+            render_target_descs.data(), 
+            &depth_stencil_desc, 
+            D3D12_RENDER_PASS_FLAG_NONE);
+
+        m_command_list->SetPipelineState(typed_pipeline->GetPipelineState());
+        m_command_list->SetGraphicsRootSignature(typed_pipeline->GetRootSignature());
+
+        ID3D12DescriptorHeap* heaps[] = { typed_resource_manager->GetDescriptorHeap(), typed_resource_manager->GetSamplerHeap() };
+        m_command_list->SetDescriptorHeaps(2, heaps);
+        m_command_list->SetGraphicsRootDescriptorTable(0, heaps[0]->GetGPUDescriptorHandleForHeapStart());
+        m_command_list->SetGraphicsRootDescriptorTable(1, heaps[1]->GetGPUDescriptorHandleForHeapStart());
+        m_command_list->IASetPrimitiveTopology(PrimativeTopology(typed_pipeline->GetDesc().topology));
+    }
+
+    void CommandBuffer::IEndRendering() {
+        m_command_list->EndRenderPass();
+
+        if (!active_framebuffer) {
+            auto *render_target= D3D12Context->GetRenderTarget(D3D12Context->GetFrameIndex());
+            const D3D12_RESOURCE_BARRIER resource_barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = {},
+                .Transition = {
+                    render_target,
+                    0,
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    D3D12_RESOURCE_STATE_PRESENT,  
+                }
+            };
+            m_command_list->ResourceBarrier(1, &resource_barrier);
+        }
     }
 }

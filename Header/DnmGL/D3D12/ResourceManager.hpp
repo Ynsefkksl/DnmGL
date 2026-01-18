@@ -20,6 +20,12 @@ namespace DnmGL::D3D12 {
 
         [[nodiscard]] std::vector<D3D12_DESCRIPTOR_RANGE> GetDescriptorRangesSRV_UAV_CBV(std::span<const EntryPointInfo *> entry_point_infos) const noexcept;
         [[nodiscard]] std::optional<D3D12_DESCRIPTOR_RANGE> GetDescriptorRangeSampler(std::span<const EntryPointInfo *> entry_point_infos) const noexcept;
+        
+        [[nodiscard]] auto *GetDescriptorHeap() const noexcept { return m_descriptor_heap.Get(); }
+        [[nodiscard]] auto *GetSamplerHeap() const noexcept { return m_sampler_heap.Get(); }
+
+        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetDescriptorHeapGPUHandle() const noexcept { return m_descriptor_heap->GetGPUDescriptorHandleForHeapStart(); }
+        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetSamplerHeapGPUHandle() const noexcept { return m_sampler_heap->GetGPUDescriptorHandleForHeapStart(); }
     private:
         ComPtr<ID3D12DescriptorHeap> m_descriptor_heap;
         ComPtr<ID3D12DescriptorHeap> m_sampler_heap;

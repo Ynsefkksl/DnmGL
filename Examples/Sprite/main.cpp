@@ -205,8 +205,8 @@ int main(int argc, char** args) {
             .atlas_texture_subresource = {},
             .extent = WindowExtent,
             .msaa = MsaaValue,
-            .init_capacity = 256,
-            .color_blend = true
+            .init_capacity = 512 * 1024,
+            .color_blend = false
         });
 
         DnmGL::SpriteCamera camera({float(WindowExtent.x)/WindowExtent.y, 1}, 0.1, 10);

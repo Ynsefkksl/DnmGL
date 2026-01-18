@@ -139,10 +139,9 @@ namespace DnmGL::D3D12 {
         pipeline_desc.VS.BytecodeLength = vertex_shader_blob->GetBufferSize();
         pipeline_desc.PS.pShaderBytecode = fragment_shader_blob->GetBufferPointer();
         pipeline_desc.PS.BytecodeLength = fragment_shader_blob->GetBufferSize();
-        // pipeline_desc.BlendState.AlphaToCoverageEnable = true;
-        // pipeline_desc.BlendState.RenderTarget->BlendEnable = true;
+        pipeline_desc.BlendState.RenderTarget->RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
         pipeline_desc.RasterizerState = rasterizer_desc;
-        pipeline_desc.DepthStencilState = depth_stencil_desc;
+        //pipeline_desc.DepthStencilState = depth_stencil_desc;
         pipeline_desc.InputLayout = input_desc;
         pipeline_desc.PrimitiveTopologyType = D3D12TopologyType(m_desc.topology);
         pipeline_desc.NumRenderTargets = m_desc.color_attachment_formats.size();

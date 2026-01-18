@@ -13,8 +13,8 @@ namespace DnmGL::D3D12 {
         void IBegin() override;
         void IEnd() override;
 
-        void IBeginRendering(const BeginRenderingDesc&) override { DnmGLAssert(false, "this func is not complate") }
-        void IEndRendering() override { DnmGLAssert(false, "this func is not complate") }
+        void IBeginRendering(const BeginRenderingDesc&) override;
+        void IEndRendering() override;
 
         void IBeginCopyPass() override {}
         void IEndCopyPass() override {}
@@ -43,13 +43,13 @@ namespace DnmGL::D3D12 {
         void IBindVertexBuffer(const DnmGL::Buffer* buffer, uint64_t offset) override { DnmGLAssert(false, "this func is not complate") }
         void IBindIndexBuffer(const DnmGL::Buffer* buffer, uint64_t offset, DnmGL::IndexType index_type) override { DnmGLAssert(false, "this func is not complate") }
     
-        void IDraw(uint32_t vertex_count, uint32_t instance_count) override { DnmGLAssert(false, "this func is not complate") }
-        void IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) override { DnmGLAssert(false, "this func is not complate") }
+        void IDraw(uint32_t vertex_count, uint32_t instance_count) override;
+        void IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) override;
     
-        void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) override { DnmGLAssert(false, "this func is not complate") }
-        void ISetScissor(Uint2 extent, Uint2 offset) override { DnmGLAssert(false, "this func is not complate") }
+        void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) override;
+        void ISetScissor(Uint2 extent, Uint2 offset) override;
     private:
-        ComPtr<ID3D12GraphicsCommandList> m_command_list;
+        ComPtr<ID3D12GraphicsCommandList10> m_command_list;
 
         friend D3D12::Context;
     };
@@ -64,5 +64,35 @@ namespace DnmGL::D3D12 {
 
     inline void CommandBuffer::IDispatch(uint32_t x, uint32_t y, uint32_t z) {
         m_command_list->Dispatch(x, y, z);
+    }
+
+    inline void CommandBuffer::IDraw(uint32_t vertex_count, uint32_t instance_count) {
+        m_command_list->DrawInstanced(vertex_count, instance_count, 0, 0);
+    }
+
+    inline void CommandBuffer::IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) {
+        m_command_list->DrawIndexedInstanced(index_count, instance_count, 0, 0, 0);
+    }
+
+    inline void CommandBuffer::ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) {
+        const D3D12_VIEWPORT viewport {
+            0,
+            0,
+            extent.x,
+            extent.y,
+            min_depth,
+            max_depth
+        };
+        m_command_list->RSSetViewports(1, &viewport);
+    }
+
+    inline void CommandBuffer::ISetScissor(Uint2 extent, Uint2 offset) {
+        const D3D12_RECT scissor {
+            static_cast<LONG>(offset.x),
+            static_cast<LONG>(offset.y),
+            static_cast<LONG>(extent.x),
+            static_cast<LONG>(extent.y),
+        };
+        m_command_list->RSSetScissorRects(1, &scissor);
     }
 }
