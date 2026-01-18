@@ -15,15 +15,15 @@ static constexpr const uint2 uv[] = {
 };
 
 struct VertexIn {
-    uint vertex_id : SV_VertexID;
-    uint instance_id : SV_InstanceID;
+    VertexIndex(uint vertex_id);
+    InstanceIndex(uint instance_id);
 };
 
 struct VertexOut {
-    float4 vert_pos : SV_Position;
-    float2 uv : TEXCOORD0;
-    nointerpolation float4 color : TEXCOORD1;
-    nointerpolation float color_factor : TEXCOORD2;
+    VertexPosition(float4 vert_pos);
+    ShaderInOut(float2 uv, 0);
+    ShaderInOut(nointerpolation float4 color, 1);
+    ShaderInOut(nointerpolation float color_factor, 2);
 };
 
 struct Sprite {
@@ -35,14 +35,12 @@ struct Sprite {
     float color_factor;
 };
 
-struct PushConstantStruct {
-    float4x4 proj_mtx;
-    float4 camera_pos;
-};
-
 ReadonlyBuffer<Sprite> sprite_buffer : register(t0);
 
-PushConstant PushConstantStruct pc;
+UniformBuffer pc : register(b0) {
+    float4x4 proj_mtx;
+    float4 camera_pos;
+}
 
 constexpr float2 FastPosCalc(float2 vert_pos, float2 pos, float2 scale, float angle) {
     const float2 rotated_pos = float2(
@@ -66,7 +64,7 @@ VertexOut VertMain(VertexIn in) {
 
     out.color_factor = sprite_data.color_factor;
     out.color = sprite_data.color;
-    out.vert_pos = mul(pc.proj_mtx, float4(vert_pos, 0.5, 1));
+    out.vert_pos = mul(proj_mtx, float4(vert_pos, 0.5, 1));
     return out;
 }
 

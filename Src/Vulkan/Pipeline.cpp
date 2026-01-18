@@ -5,39 +5,41 @@
 #include "DnmGL/Vulkan/ToVkFormat.hpp"
 
 namespace DnmGL::Vulkan {
-    static constexpr vk::PipelineStageFlagBits ShaderStageToPipelineStage(vk::ShaderStageFlagBits stage) {
+    static constexpr vk::PipelineStageFlagBits ShaderStageToPipelineStage(ShaderStageBits stage) {
         switch (stage) {
-            case vk::ShaderStageFlagBits::eVertex: return vk::PipelineStageFlagBits::eVertexShader;
-            case vk::ShaderStageFlagBits::eTessellationControl: return vk::PipelineStageFlagBits::eTessellationControlShader;
-            case vk::ShaderStageFlagBits::eTessellationEvaluation: return vk::PipelineStageFlagBits::eTessellationEvaluationShader;
-            case vk::ShaderStageFlagBits::eGeometry: return vk::PipelineStageFlagBits::eGeometryShader;
-            case vk::ShaderStageFlagBits::eFragment: return vk::PipelineStageFlagBits::eFragmentShader;
-            case vk::ShaderStageFlagBits::eCompute: return vk::PipelineStageFlagBits::eComputeShader;
-            default: return {};
+            case ShaderStageBits::eNone: return vk::PipelineStageFlagBits::eAllCommands;
+            case ShaderStageBits::eVertex: return vk::PipelineStageFlagBits::eVertexShader;
+            case ShaderStageBits::eFragment: return vk::PipelineStageFlagBits::eFragmentShader;
+            case ShaderStageBits::eCompute: return vk::PipelineStageFlagBits::eComputeShader;
         }
+    }
+
+    static constexpr vk::AccessFlags GetAccessFlagsForEntryPoint(const EntryPointInfo &stage) {
+        vk::AccessFlags out;
+        if (stage.HasReadonlyResource())
+            out |= vk::AccessFlagBits::eShaderRead;
+        if (stage.HasWritableResource())
+            out |= vk::AccessFlagBits::eShaderWrite;
+        if (stage.HasUniformResource())
+            out |= vk::AccessFlagBits::eUniformRead;
+        return out;
     }
 
     GraphicsPipelineBase::GraphicsPipelineBase(Vulkan::Context& ctx, const DnmGL::GraphicsPipelineDesc& desc) noexcept
         : DnmGL::GraphicsPipeline(ctx, desc) {
         const auto *typed_vertex_shader = static_cast<const Vulkan::Shader *>(m_desc.vertex_shader);
         const auto *typed_fragment_shader = static_cast<const Vulkan::Shader *>(m_desc.fragment_shader);
-
-        const auto *vertex_entry_point = typed_vertex_shader->GetVkEntryPoint(m_desc.vertex_entry_point);
-        const auto *frag_entry_point = typed_fragment_shader->GetVkEntryPoint(m_desc.fragment_entry_point);
-        DnmGLAssert(vertex_entry_point, "vertex entry point is not in the vertex shader; entry point: {}", m_desc.vertex_entry_point);
-        DnmGLAssert(frag_entry_point, "fragment entry point is not in the fragment shader; entry point: {}", m_desc.fragment_entry_point);
-        
-        DnmGLAssert(vertex_entry_point->stage == vk::ShaderStageFlagBits::eVertex, 
-            "vertex entry point, stage must be vertex ; entry point: {}", m_desc.vertex_entry_point);
-        DnmGLAssert(frag_entry_point->stage == vk::ShaderStageFlagBits::eFragment, 
-            "fragment entry point, stage must be fragment ; entry point: {}", m_desc.fragment_entry_point);
+        const auto *vertex_entry_point = typed_vertex_shader->GetEntryPoint(m_desc.vertex_entry_point);
+        const auto *frag_entry_point = typed_fragment_shader->GetEntryPoint(m_desc.fragment_entry_point);
         {
             m_pipeline_stage_flags = 
-                ShaderStageToPipelineStage(vertex_entry_point->stage)
-                | ShaderStageToPipelineStage(frag_entry_point->stage)
+                ShaderStageToPipelineStage(vertex_entry_point->shader_stage)
+                | ShaderStageToPipelineStage(frag_entry_point->shader_stage)
                 ;
 
-            m_access_flags = frag_entry_point->access_flags | frag_entry_point->access_flags;
+            
+            m_access_flags |= GetAccessFlagsForEntryPoint(*vertex_entry_point);
+            m_access_flags |= GetAccessFlagsForEntryPoint(*frag_entry_point);
         }
 
         const auto *typed_resource_manager = static_cast<const Vulkan::ResourceManager *>(m_desc.resource_manager);
@@ -46,31 +48,14 @@ namespace DnmGL::Vulkan {
         {
             std::vector<vk::PushConstantRange> push_constants{};
             
-            if (vertex_entry_point->push_constant.has_value()) {
-                push_constants.push_back(
-                    vk::PushConstantRange{}.setOffset(vertex_entry_point->push_constant->offset)
-                    .setStageFlags(vk::ShaderStageFlagBits::eVertex)
-                    .setSize(vertex_entry_point->push_constant->size)
-                );
-            }
-            
-            if (frag_entry_point->push_constant.has_value()) {
-                push_constants.push_back(
-                        vk::PushConstantRange{}.setOffset(frag_entry_point->push_constant->offset)
-                                .setStageFlags(vk::ShaderStageFlagBits::eFragment)
-                                .setSize(frag_entry_point->push_constant->size)
-                            );
-                        }
-
             vk::DescriptorSetLayout dst_set_layouts[4];
-            const VkEntryPointInfo* entry_points[2] = {vertex_entry_point, frag_entry_point};
+            const EntryPointInfo* entry_points[2] = {vertex_entry_point, frag_entry_point};
 
             typed_resource_manager->FillDescriptorSets(m_dst_sets, entry_points);
             typed_resource_manager->FillDescriptorSetLayouts(dst_set_layouts, entry_points);
 
             vk::PipelineLayoutCreateInfo create_info{};
             create_info.setSetLayouts(dst_set_layouts)
-                        .setPushConstantRanges(push_constants)
                         ;
 
             m_pipeline_layout = device.createPipelineLayout(create_info);
@@ -375,41 +360,16 @@ namespace DnmGL::Vulkan {
         : DnmGL::ComputePipeline(ctx, desc) {
 
         const auto *typed_shader = static_cast<const Vulkan::Shader *>(m_desc.shader);
-        const auto *shader_entry_point = static_cast<const Vulkan::Shader *>(m_desc.shader)->GetVkEntryPoint(m_desc.shader_entry_point);
-        DnmGLAssert(shader_entry_point, "entry point is not in the shader; entry point: {}", m_desc.shader_entry_point);
-        DnmGLAssert(shader_entry_point->stage == vk::ShaderStageFlagBits::eCompute,
-            "entry point, stage must be compute; entry point: {}", m_desc.shader_entry_point);
+        const auto *shader_entry_point = static_cast<const Vulkan::Shader *>(m_desc.shader)->GetEntryPoint(m_desc.shader_entry_point);
         {
             m_pipeline_stage_flags = 
-                ShaderStageToPipelineStage(shader_entry_point->stage);
+                ShaderStageToPipelineStage(shader_entry_point->shader_stage);
 
-            m_access_flags = shader_entry_point->access_flags;
+            m_access_flags |= GetAccessFlagsForEntryPoint(*shader_entry_point);
         }
 
         const auto *typed_resource_manager = static_cast<const Vulkan::ResourceManager *>(m_desc.resource_manager);
         const auto device = VulkanContext->GetDevice();
-
-        {
-            vk::PushConstantRange push_constant;
-
-            if (shader_entry_point->push_constant.has_value()) {
-                push_constant = vk::PushConstantRange{}.setStageFlags(vk::ShaderStageFlagBits::eCompute)
-                                            .setOffset(shader_entry_point->push_constant->offset)
-                                            .setSize(shader_entry_point->push_constant->size);
-            }
-            
-            vk::DescriptorSetLayout dst_set_layouts[4];
-            typed_resource_manager->FillDescriptorSets(m_dst_sets, std::span(&shader_entry_point, 1));
-            typed_resource_manager->FillDescriptorSetLayouts(dst_set_layouts, std::span(&shader_entry_point, 1));
-
-            vk::PipelineLayoutCreateInfo create_info{};
-            create_info.setSetLayouts(dst_set_layouts)
-                        .setPushConstantRanges(
-                            push_constant
-                        )
-                        .setPushConstantRangeCount(shader_entry_point->push_constant.has_value());
-            m_pipeline_layout = device.createPipelineLayout(create_info);
-        }
 
         vk::PipelineShaderStageCreateInfo stage_info{};
         stage_info.setStage(vk::ShaderStageFlagBits::eCompute)

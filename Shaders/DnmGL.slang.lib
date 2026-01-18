@@ -4,12 +4,9 @@
 #define WritableBuffer \
     RWStructuredBuffer
 
-#define UniformBuffer() \
+#define UniformBuffer \
     cbuffer
-
-#define PushConstant \
-    [[vk::push_constant]]
-
+    
 #define ReadonlyImage \
     Texture2D
 
@@ -18,3 +15,9 @@
 
 #define WritableImage \
     RWTexture2D
+
+#define ShaderInOut(var, index)  [[vk_location(index)]] var : _##index
+
+#define VertexIndex(var)  var : SV_VertexID
+#define InstanceIndex(var)  var : SV_InstanceID
+#define VertexPosition(var)  var : SV_Position

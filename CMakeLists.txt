@@ -44,6 +44,7 @@ if(D3D12)
         ${CMAKE_CURRENT_SOURCE_DIR}/Src/D3D12/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/D3D12MA/*.cpp
     )
+
     find_package(directx-headers CONFIG REQUIRED)
 
     add_library(DnmGL_D3D12 SHARED ${D3D12_Sources})
@@ -54,6 +55,7 @@ if(D3D12)
         dxcompiler.lib
         dxgi.lib
     )
+
     target_include_directories(DnmGL_D3D12 PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/Header/
         ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/

@@ -71,9 +71,6 @@ namespace DnmGL::Vulkan {
     
         void IDraw(uint32_t vertex_count, uint32_t instance_count) override;
         void IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) override;
-    
-        void IPushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr) override;
-        void IPushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr) override;
 
         void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) override;
         void ISetScissor(Uint2 extent, Uint2 offset) override;

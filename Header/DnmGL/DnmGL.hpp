@@ -24,7 +24,10 @@
 
 //TODO: vulkan supported feature override
 //TODO: support VK_KHR_imageless_framebuffer
+//TODO: add push constant support (or alternative something)
 //TODO: test offline rendering
+//TODO: Vertex and Input buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡ 
+//TODO: find a solution to the semantic problem in D3D12
 namespace DnmGL {
     class Context;
     class CommandBuffer;
@@ -248,16 +251,6 @@ namespace DnmGL {
         return !is_not_color_format;
     }
 
-    enum class BufferResourceType {
-        eUniformBuffer,
-        eStorageBuffer
-    };
-
-    enum class ImageResourceType {
-        eStorage,
-        eSampledImage
-    };
-
     enum class ImageSubresourceType : uint8_t {
         e1D,
         e2D,
@@ -307,7 +300,6 @@ namespace DnmGL {
     enum class PolygonMode {
         eFill,
         eLine,
-        ePoint
     };
 
     //same with vulkan
@@ -315,7 +307,6 @@ namespace DnmGL {
         eNone,
         eFront,
         eBack,
-        eFrontAndBack,
     };
 
     //same with vulkan
@@ -486,7 +477,8 @@ namespace DnmGL {
     };
 
     struct BufferDesc {
-        uint64_t size;
+        uint32_t element_size;
+        uint32_t element_count;
         MemoryHostAccess memory_host_access;
         MemoryType memory_type;
         BufferUsageFlags usage_flags;
@@ -500,11 +492,6 @@ namespace DnmGL {
     struct RenderPassBeginInfo {
         std::span<ColorFloat> color_clear_values;
         std::optional<DepthStencilClearValue> depth_stencil_clear_value;
-    };
-
-    struct PushConstantInfo {
-        uint32_t size;
-        uint32_t offset;
     };
 
     struct BindingInfo {
@@ -521,7 +508,10 @@ namespace DnmGL {
         std::vector<BindingInfo> uniform_buffer_resources;
         std::vector<BindingInfo> sampler_resources;
 
-        std::optional<PushConstantInfo> push_constant;
+        constexpr bool HasReadonlyResource() const noexcept { return !readonly_resources.empty(); }
+        constexpr bool HasWritableResource() const noexcept { return !writable_resources.empty(); }
+        constexpr bool HasUniformResource() const noexcept { return !uniform_buffer_resources.empty(); }
+        constexpr bool HasSamplerResource() const noexcept { return !sampler_resources.empty(); }
     };
 
     struct UniformResourceDesc {
@@ -562,7 +552,6 @@ namespace DnmGL {
         std::vector<VertexFormat> vertex_binding_formats;
         // depth_format ignore if !(depth_test || depth_write) 
         ImageFormat depth_stencil_format;
-        ImageFormat stencil_format;
         CompareOp depth_test_compare_op;
         PolygonMode polygone_mode;
         CullMode cull_mode;
@@ -919,8 +908,8 @@ namespace DnmGL {
 
         void SetReadonlyResource(std::span<const ResourceDesc> update_resource);
         void SetWritableResource(std::span<const ResourceDesc> update_resource);
-        void SetUniformBuffer(std::span<const UniformResourceDesc> update_resource);
-        void SetSampler(std::span<const SamplerResourceDesc> update_resource);
+        void SetUniformResource(std::span<const UniformResourceDesc> update_resource);
+        void SetSamplerResource(std::span<const SamplerResourceDesc> update_resource);
 
         [[nodiscard]] constexpr const auto& GetShaders() const noexcept { return m_shaders; }
 
@@ -936,8 +925,8 @@ namespace DnmGL {
     protected:
         virtual void ISetReadonlyResource(std::span<const ResourceDesc> update_resource) = 0;
         virtual void ISetWritableResource(std::span<const ResourceDesc> update_resource) = 0;
-        virtual void ISetUniformBuffer(std::span<const UniformResourceDesc> update_resource) = 0;
-        virtual void ISetSampler(std::span<const SamplerResourceDesc> update_resource) = 0;
+        virtual void ISetUniformResource(std::span<const UniformResourceDesc> update_resource) = 0;
+        virtual void ISetSamplerResource(std::span<const SamplerResourceDesc> update_resource) = 0;
 
         const std::vector<const Shader*> m_shaders;
         std::vector<BindingInfo> m_readonly_resource_bindings;
@@ -1003,9 +992,6 @@ namespace DnmGL {
         void SetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth);
         void SetScissor(Uint2 extent, Uint2 offset);
 
-        void PushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr);
-        void PushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr);
-
         void CopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc);
         void CopyImageToImage(const DnmGL::ImageToImageCopyDesc& desc);
         void CopyBufferToImage(const DnmGL::BufferToImageCopyDesc& desc);
@@ -1051,9 +1037,6 @@ namespace DnmGL {
 
         virtual void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) = 0;
         virtual void ISetScissor(Uint2 extent, Uint2 offset) = 0;
-
-        virtual void IPushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr) = 0;
-        virtual void IPushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr) = 0;
 
         virtual void ICopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc) = 0;
         virtual void ICopyImageToImage(const DnmGL::ImageToImageCopyDesc& descs) = 0;
@@ -1193,26 +1176,6 @@ namespace DnmGL {
         DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
 
         ISetScissor(extent, offset);
-    }
-
-    inline void CommandBuffer::PushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr) {
-        DnmGLAssert(pipeline, "pipeline cannot be null")
-        DnmGLAssert(ptr, "ptr cannot be null")
-        DnmGLAssert(size + offset < 128, "size + offset must be < 128")
-
-        if (size == 0) return;
-
-        IPushConstant(pipeline, pipeline_stage, offset, size, ptr);
-    }
-
-    inline void CommandBuffer::PushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr) {
-        DnmGLAssert(pipeline, "pipeline cannot be null")
-        DnmGLAssert(ptr, "ptr cannot be null")
-        DnmGLAssert(size + offset < 128, "size + offset must be < 128")
-
-        if (size == 0) return;
-
-        IPushConstant(pipeline, offset, size, ptr);
     }
 
     inline void CommandBuffer::CopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc) {
@@ -1366,6 +1329,15 @@ namespace DnmGL {
             DnmGLAssert(vertex_shader_is_there, "vertex shader must be in resource manager")
             DnmGLAssert(fragment_shader_is_there, "fragment shader must be in resource manager")
         }
+        const auto *vertex_entry_point = m_desc.vertex_shader->GetEntryPoint(m_desc.vertex_entry_point);
+        DnmGLAssert(vertex_entry_point, "vertex entry point is not in the vertex shader; entry point: {}", m_desc.vertex_entry_point);
+        DnmGLAssert(vertex_entry_point->shader_stage == ShaderStageBits::eVertex,
+            "vertex entry point, stage must be vertex; entry point: {}", m_desc.vertex_entry_point);
+
+        const auto *fragment_entry_point = m_desc.vertex_shader->GetEntryPoint(m_desc.fragment_entry_point);
+        DnmGLAssert(fragment_entry_point, "fragment entry point is not in the fragment shader; entry point: {}", m_desc.fragment_entry_point);
+        DnmGLAssert(fragment_entry_point->shader_stage == ShaderStageBits::eFragment,
+            "fragment entry point, stage must be fragment; entry point: {}", m_desc.fragment_entry_point);
     }
 
     constexpr ComputePipeline::ComputePipeline(Context& ctx, const ComputePipelineDesc& desc) noexcept
@@ -1381,6 +1353,10 @@ namespace DnmGL {
 
             DnmGLAssert(shader_is_there, "shader must be in resource manager")
         }
+        const auto *shader_entry_point = m_desc.shader->GetEntryPoint(m_desc.shader_entry_point);
+        DnmGLAssert(shader_entry_point, "entry point is not in the shader; entry point: {}", m_desc.shader_entry_point);
+        DnmGLAssert(shader_entry_point->shader_stage == ShaderStageBits::eCompute,
+            "entry point, stage must be compute; entry point: {}", m_desc.shader_entry_point);
     }
 
     constexpr Shader::Shader(Context& context, std::string_view filename) noexcept
@@ -1538,7 +1514,7 @@ namespace DnmGL {
         ISetWritableResource(update_resource);   
     }
 
-    inline void ResourceManager::SetUniformBuffer(std::span<const UniformResourceDesc> update_resource) {
+    inline void ResourceManager::SetUniformResource(std::span<const UniformResourceDesc> update_resource) {
         for (const auto i : Counter(update_resource.size())) {
             const auto &resource = update_resource[i];
             const auto *binding = GetReadonlyResourcesBinding(resource.binding);
@@ -1549,10 +1525,10 @@ namespace DnmGL {
                         "buffer dont has BufferUsageBits::eUniform; element index {}", i);
         }
         
-        ISetUniformBuffer(update_resource);   
+        ISetUniformResource(update_resource);   
     }
 
-    inline void ResourceManager::SetSampler(std::span<const SamplerResourceDesc> update_resource) {
+    inline void ResourceManager::SetSamplerResource(std::span<const SamplerResourceDesc> update_resource) {
         for (const auto i : Counter(update_resource.size())) {
             const auto &resource = update_resource[i];
             const auto *binding = GetReadonlyResourcesBinding(resource.binding);
@@ -1561,7 +1537,7 @@ namespace DnmGL {
             DnmGLAssert(resource.sampler, "resource is null; element index {}", i);
         }
         
-        ISetSampler(update_resource);
+        ISetSamplerResource(update_resource);
     }
     
     constexpr const BindingInfo *ResourceManager::GetReadonlyResourcesBinding(uint32_t i) const noexcept {

@@ -4,8 +4,6 @@
 #include "DnmGL/Vulkan/Shader.hpp"
 
 namespace DnmGL::Vulkan {
-    struct EntryPointInfo;
-
     class ResourceManager final : public DnmGL::ResourceManager {
     public:
         ResourceManager(DnmGL::Vulkan::Context& context, std::span<const DnmGL::Shader *> shaders);
@@ -13,8 +11,8 @@ namespace DnmGL::Vulkan {
 
         void ISetReadonlyResource(std::span<const ResourceDesc> update_resource) override;
         void ISetWritableResource(std::span<const ResourceDesc> update_resource) override;
-        void ISetUniformBuffer(std::span<const UniformResourceDesc> update_resource) override;
-        void ISetSampler(std::span<const SamplerResourceDesc> update_resource) override;
+        void ISetUniformResource(std::span<const UniformResourceDesc> update_resource) override;
+        void ISetSamplerResource(std::span<const SamplerResourceDesc> update_resource) override;
 
         [[nodiscard]] std::span<const vk::DescriptorSet, 4> GetDescriptorSets() const noexcept { return m_dst_sets; }
         [[nodiscard]] std::span<const vk::DescriptorSetLayout, 4> GetDescriptorLayouts() const noexcept { return m_dst_set_layouts; }
@@ -31,8 +29,8 @@ namespace DnmGL::Vulkan {
         [[nodiscard]] vk::DescriptorSet GetSamplerSet() const noexcept { return m_dst_sets[3]; }
         [[nodiscard]] vk::DescriptorSetLayout GetSamplerSetLayout() const noexcept { return m_dst_set_layouts[3]; }
 
-        void FillDescriptorSets(std::span<vk::DescriptorSet, 4> sets, std::span<const VkEntryPointInfo *> entry_points) const noexcept;
-        void FillDescriptorSetLayouts(std::span<vk::DescriptorSetLayout, 4> layouts, std::span<const VkEntryPointInfo *> entry_points) const noexcept;
+        void FillDescriptorSets(std::span<vk::DescriptorSet, 4> sets, std::span<const EntryPointInfo *> entry_points) const noexcept;
+        void FillDescriptorSetLayouts(std::span<vk::DescriptorSetLayout, 4> layouts, std::span<const EntryPointInfo *> entry_points) const noexcept;
     private:
         std::array<vk::DescriptorSet, 4> m_dst_sets;
         std::array<vk::DescriptorSetLayout, 4> m_dst_set_layouts;
@@ -49,7 +47,7 @@ namespace DnmGL::Vulkan {
             });
     }
 
-    inline void ResourceManager::FillDescriptorSets(std::span<vk::DescriptorSet, 4> sets, std::span<const VkEntryPointInfo *> entry_points) const noexcept {
+    inline void ResourceManager::FillDescriptorSets(std::span<vk::DescriptorSet, 4> sets, std::span<const EntryPointInfo *> entry_points) const noexcept {
         const auto empty_set = VulkanContext->GetEmptySet();
 
         bool has_readonly_res{};
@@ -70,7 +68,7 @@ namespace DnmGL::Vulkan {
         sets[3] = has_sampler_res ? GetSamplerSet() : empty_set;
     }
 
-    inline void ResourceManager::FillDescriptorSetLayouts(std::span<vk::DescriptorSetLayout, 4> layouts, std::span<const VkEntryPointInfo *> entry_points) const noexcept {
+    inline void ResourceManager::FillDescriptorSetLayouts(std::span<vk::DescriptorSetLayout, 4> layouts, std::span<const EntryPointInfo *> entry_points) const noexcept {
         const auto empty_set = VulkanContext->GetEmptySetLayout();
 
         bool has_readonly_res{};

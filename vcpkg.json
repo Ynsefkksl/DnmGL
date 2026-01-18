@@ -5,6 +5,7 @@
     "spirv-headers",
     "spirv-reflect",
     "stb",
-    "vulkan-memory-allocator"
+    "vulkan-memory-allocator",
+    "directx-dxc"
   ]
 }

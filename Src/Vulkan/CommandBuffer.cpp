@@ -266,35 +266,6 @@ namespace DnmGL::Vulkan {
         prev_operation = CommandType::eTransfer;
     }
 
-    void CommandBuffer::IPushConstant(
-        const DnmGL::GraphicsPipeline* pipeline, 
-        DnmGL::ShaderStageFlags pipeline_stage, 
-        uint32_t offset, 
-        uint32_t size, 
-        const void *ptr) {
-        const auto* typed_pipeline = static_cast<const GraphicsPipelineBase *>(pipeline);
-        command_buffer.pushConstants(
-            typed_pipeline->GetPipelineLayout(), 
-            ToVk(pipeline_stage),
-            offset, 
-            size, 
-            ptr);
-    }
-
-    void CommandBuffer::IPushConstant(
-        const DnmGL::ComputePipeline* pipeline, 
-        uint32_t offset, 
-        uint32_t size, 
-        const void *ptr) {
-        const auto* typed_pipeline = static_cast<const Vulkan::ComputePipeline*>(pipeline);
-        command_buffer.pushConstants(
-            typed_pipeline->GetPipelineLayout(), 
-            vk::ShaderStageFlagBits::eCompute, 
-            offset, 
-            size, 
-            ptr);
-    }
-
     void CommandBuffer::TransferImageLayout(
         std::span<const ImageBarrier> descs) const {
         std::vector<TransferImageLayoutNativeDesc> barriers{};
@@ -567,7 +538,8 @@ namespace DnmGL::Vulkan {
 
         //No problem, the Vulkan object is destroyed at the start of ExecuteCommands() or Render()
         Vulkan::Buffer staging_buffer(*VulkanContext, {
-            .size = size,
+            .element_size = size,
+            .element_count = 1,
             .memory_host_access = MemoryHostAccess::eWrite,
             .memory_type = MemoryType::eAuto,
             .usage_flags = {},
@@ -594,7 +566,8 @@ namespace DnmGL::Vulkan {
         const auto copy_size = copy_extent.x * copy_extent.y * copy_extent.z * GetFormatSize(image->GetDesc().format);
         //No problem, the Vulkan object is destroyed at the start of ExecuteCommands() or Render()
         Vulkan::Buffer staging_buffer(*VulkanContext, {
-            .size = copy_size,
+            .element_size = copy_size,
+            .element_count = 1,
             .memory_host_access = MemoryHostAccess::eWrite,
             .memory_type = MemoryType::eAuto,
             .usage_flags = {},
@@ -707,7 +680,7 @@ namespace DnmGL::Vulkan {
                 VK_QUEUE_FAMILY_IGNORED,
                 typed_buffer->GetBuffer(),
                 0,
-                typed_buffer->GetDesc().size
+                typed_buffer->GetDesc().element_count * typed_buffer->GetDesc().element_size
             );
 
             typed_buffer->prev_access = barrier.dst_access;
@@ -772,7 +745,7 @@ namespace DnmGL::Vulkan {
                 VK_QUEUE_FAMILY_IGNORED,
                 typed_buffer->GetBuffer(),
                 0,
-                typed_buffer->GetDesc().size
+                typed_buffer->GetDesc().element_count * typed_buffer->GetDesc().element_size
             );
 
             typed_buffer->prev_access = barrier.dst_access;
