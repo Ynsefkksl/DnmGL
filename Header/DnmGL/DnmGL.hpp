@@ -26,7 +26,7 @@
 //TODO: support VK_KHR_imageless_framebuffer
 //TODO: add push constant support (or alternative something)
 //TODO: test offline rendering
-//TODO: Vertex and Input buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡ 
+//TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡ 
 //TODO: find a solution to dxil.dll
 //TODO: fix resource manager function buffer offset, size, element problem
 namespace DnmGL {
