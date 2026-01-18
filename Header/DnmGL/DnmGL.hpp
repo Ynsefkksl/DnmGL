@@ -22,13 +22,15 @@
 #include <map>
 #include <set>
 
-//TODO: vulkan supported feature override
+//TODO: add vulkan supported feature override
 //TODO: support VK_KHR_imageless_framebuffer
 //TODO: add push constant support (or alternative something)
 //TODO: test offline rendering
 //TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡ 
 //TODO: find a solution to dxil.dll
 //TODO: fix resource manager function buffer offset, size, element problem
+//TODO: fix Vulkan readonly image problem (readonly image type storage can be equivalent to sampled storage)
+//TODO: D3D12 alighment problem
 namespace DnmGL {
     class Context;
     class CommandBuffer;
