@@ -17,19 +17,6 @@ namespace DnmGL::Vulkan {
         return buffer;
     }
 
-    static constexpr DnmGL::ResourceType GetResourceType(const SpvReflectDescriptorBinding *binding) {
-        switch (binding->resource_type) {
-            case SPV_REFLECT_RESOURCE_FLAG_UNDEFINED: return {};
-            case SPV_REFLECT_RESOURCE_FLAG_SAMPLER: return DnmGL::ResourceType::eSampler;
-            case SPV_REFLECT_RESOURCE_FLAG_CBV: return DnmGL::ResourceType::eUniformBuffer;
-            case SPV_REFLECT_RESOURCE_FLAG_SRV: return (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
-                        ? DnmGL::ResourceType::eReadonlyBuffer : DnmGL::ResourceType::eReadonlyImage;
-            case SPV_REFLECT_RESOURCE_FLAG_UAV:
-                return (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
-                        ? DnmGL::ResourceType::eWritableBuffer : DnmGL::ResourceType::eWritableImage;
-        }
-    }
-
     static constexpr DnmGL::ShaderStageBits GetShaderStage(SpvReflectShaderStageFlagBits spv_stage) {
         switch (spv_stage) {
             case SPV_REFLECT_SHADER_STAGE_VERTEX_BIT: return ShaderStageBits::eVertex;
@@ -74,6 +61,7 @@ namespace DnmGL::Vulkan {
             
                                             //same bit with vulkan
             entry_point_info.shader_stage = GetShaderStage(reflection.GetEntryPointShaderStage(entry_index));
+            entry_point_info.name = entry_point_name;            
             DnmGLAssert(entry_point_info.shader_stage != ShaderStageBits::eNone, 
                 "unsupported shader stage; entry point: {}", entry_point_name);
 
@@ -90,7 +78,8 @@ namespace DnmGL::Vulkan {
                             entry_point_info.readonly_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
+                                    ? DnmGL::ResourceType::eReadonlyBuffer : DnmGL::ResourceType::eReadonlyImage
                             );
                         }
                     }
@@ -110,7 +99,8 @@ namespace DnmGL::Vulkan {
                             entry_point_info.writable_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
+                                    ? DnmGL::ResourceType::eWritableBuffer : DnmGL::ResourceType::eWritableImage
                             );
                         }
                     }
@@ -130,7 +120,7 @@ namespace DnmGL::Vulkan {
                             entry_point_info.uniform_buffer_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                DnmGL::ResourceType::eUniformBuffer
                             );
                         }
                     }
@@ -150,22 +140,13 @@ namespace DnmGL::Vulkan {
                             entry_point_info.sampler_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                DnmGL::ResourceType::eSampler
                             );
                         }
                     }
                 }
             }
 
-        }
-        
-        {
-            uint32_t count;
-            reflection.EnumerateEntryPointInputVariables("VertMain", &count, nullptr);
-            std::vector<SpvReflectInterfaceVariable *> inputs(count);
-            reflection.EnumerateEntryPointInputVariables("VertMain", &count, inputs.data());
-
-            auto **asd = inputs.data();
         }
 
         //create shader module

@@ -27,7 +27,8 @@
 //TODO: add push constant support (or alternative something)
 //TODO: test offline rendering
 //TODO: Vertex and Input buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡ 
-//TODO: find a solution to the semantic problem in D3D12
+//TODO: find a solution to dxil.dll
+//TODO: fix resource manager function buffer offset, size, element problem
 namespace DnmGL {
     class Context;
     class CommandBuffer;
@@ -848,7 +849,7 @@ namespace DnmGL {
         virtual ~Buffer() = default;
 
         template <typename T = uint8_t>
-        [[nodiscard]] constexpr T* GetMappedPtr() const noexcept { return reinterpret_cast<T*>(m_mapped_ptr); }
+        [[nodiscard]] constexpr T *GetMappedPtr() const noexcept;
 
         [[nodiscard]] constexpr const auto& GetDesc() const noexcept { return m_desc; }
     protected:
@@ -1303,6 +1304,14 @@ namespace DnmGL {
         ISetSwapchainSettings(settings);
     }
 
+    template <typename T>
+    constexpr T *Buffer::GetMappedPtr() const noexcept {
+        DnmGLAssert(m_desc.memory_host_access != MemoryHostAccess::eNone, 
+            "MemoryHostAccess::eNone, must be MemoryHostAccess::eWrite or MemoryHostAccess::eReadWrite");
+
+        return reinterpret_cast<T *>(m_mapped_ptr);
+    }
+
     constexpr GraphicsPipeline::GraphicsPipeline(Context& ctx, const GraphicsPipelineDesc& desc) noexcept
     : RHIObject(ctx), m_desc(desc) {
         DnmGLAssert(m_desc.resource_manager, "resource manager can not be null")
@@ -1475,14 +1484,16 @@ namespace DnmGL {
                     DnmGLAssert(resource.buffer, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
                 DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eReadonlyResource), 
-                        "buffer dont has BufferUsageBits::eReadonlyResource; element index {}", i);
+                        "buffer don't has BufferUsageBits::eReadonlyResource; element index {}", i);
+                break;
             }
             else {
                 if (resource.buffer)
                     DnmGLAssert(resource.image, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.image, "resource is null; element index {}", i);
                 DnmGLAssert(resource.image->GetDesc().usage_flags.Has(ImageUsageBits::eReadonlyResource), 
-                            "image dont has ImageUsageBits::eReadonlyResource; element index {}", i);
+                            "image don't has ImageUsageBits::eReadonlyResource; element index {}", i);
+                break;
             }
         }
 
@@ -1500,14 +1511,14 @@ namespace DnmGL {
                     DnmGLAssert(resource.buffer, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
                 DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eWritebleResource), 
-                        "buffer dont has BufferUsageBits::eWritable; element index {}", i);
+                        "buffer don't has BufferUsageBits::eWritable; element index {}", i);
             }
             else {
                 if (resource.buffer)
                     DnmGLAssert(resource.image, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.image, "resource is null; element index {}", i);
                 DnmGLAssert(resource.image->GetDesc().usage_flags.Has(ImageUsageBits::eWritebleResource), 
-                            "image dont has ImageUsageBits::eWritebleResource; element index {}", i);
+                            "image don't has ImageUsageBits::eWritebleResource; element index {}", i);
             }
         }
         
@@ -1522,7 +1533,7 @@ namespace DnmGL {
             DnmGLAssert(binding->resource_count > resource.array_element, "out of bounds; element index {}", i);
             DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
             DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eUniform), 
-                        "buffer dont has BufferUsageBits::eUniform; element index {}", i);
+                        "buffer don't has BufferUsageBits::eUniform; element index {}", i);
         }
         
         ISetUniformResource(update_resource);   

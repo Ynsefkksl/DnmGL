@@ -213,6 +213,16 @@ namespace DnmGL {
         }
 
         {
+            m_camera_buffer = desc.context->CreateBuffer({
+                .element_size = sizeof(SpriteCameraData),
+                .element_count = 1,
+                .memory_host_access = DnmGL::MemoryHostAccess::eWrite,
+                .memory_type = DnmGL::MemoryType::eAuto,
+                .usage_flags = DnmGL::BufferUsageBits::eUniform,
+            });
+        }
+
+        {
             m_shader = desc.context->CreateShader("Sprite");
 
             const DnmGL::Shader* shaders[1] = {m_shader.get()};
@@ -265,7 +275,7 @@ namespace DnmGL {
                 {
                     .buffer = m_sprite_buffer.get(),
                     .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count),
+                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count * m_sprite_buffer->GetDesc().element_size),
                     .binding = 0,
                     .array_element = 0,
                 },
@@ -275,9 +285,9 @@ namespace DnmGL {
         {
             const UniformResourceDesc resource_desc[] = {
                 {
-                    .buffer = m_sprite_buffer.get(),
+                    .buffer = m_camera_buffer.get(),
                     .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count),
+                    .size = static_cast<uint32_t>(m_camera_buffer->GetDesc().element_size),
                     .binding = 0,
                     .array_element = 0,
                 },
@@ -314,7 +324,7 @@ namespace DnmGL {
                 {
                     .buffer = m_sprite_buffer.get(),
                     .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count),
+                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count * m_sprite_buffer->GetDesc().element_size),
                     .binding = 0,
                     .array_element = 0,
                 },
@@ -449,10 +459,12 @@ namespace DnmGL {
     }
 
     inline void SpriteManager::DrawSprites(DnmGL::CommandBuffer *command_buffer) noexcept {
+        if (!m_sprite_count) return;
         DnmGLAssert(m_camera_ptr , "camera cannot be null");
 
-        if (m_sprite_count) {
-            command_buffer->Draw(4, m_sprite_count);
-        }
+        auto *mapped_ptr = m_camera_buffer->GetMappedPtr();
+        memcpy(mapped_ptr, &m_camera_ptr->GetCameraData(), sizeof(SpriteCameraData));
+
+        command_buffer->Draw(4, m_sprite_count);
     }
 }
