@@ -9,10 +9,6 @@
 #include "DnmGL/D3D12/Framebuffer.hpp"
 #include "DnmGL/D3D12/ToDxgiFormat.hpp"
 
-extern "C" __declspec(dllexport) DnmGL::Context* LoadContext() {
-    return new DnmGL::D3D12::Context();
-}
-
 namespace DnmGL::D3D12 {
     static void GetHardwareAdapter(IDXGIFactory6* factory, IDXGIAdapter1** out_adapter) {
         *out_adapter = nullptr;
@@ -229,12 +225,7 @@ namespace DnmGL::D3D12 {
         m_command_buffer->End();
 
         ID3D12CommandList *const command_lists[1] = { m_command_buffer->GetCommandList() };
-        auto start = std::chrono::high_resolution_clock::now();
         m_command_queue->ExecuteCommandLists(1, command_lists);
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<float, std::milli> duration = end - start;
-
-        std::println("duration: {}ms", duration.count());
         m_swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
         m_command_queue->Signal(m_fence.Get(), m_fence_value++);
 

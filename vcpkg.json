@@ -1,6 +1,7 @@
 {
   "dependencies": [
     "directx-headers",
+    "directx-dxc",
     "glfw3",
     "spirv-headers",
     "spirv-reflect",

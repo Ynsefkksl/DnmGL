@@ -1,12 +1,5 @@
 #pragma once
 
-#include "DnmGL/DnmGL.hpp"
-#include "DnmGL/Utility/Macros.hpp"
-
-#ifndef OS_WIN
-    #error d3d12 backend just for windows
-#endif
-
 #include <windows.h>
 
 #include <d3d12.h>
@@ -17,7 +10,9 @@
 #include <comdef.h>
 #include <directx/d3dx12.h>
 #include <d3d12sdklayers.h>
-#include "D3D12MA/D3D12MemAlloc.h"
+#include "D3D12MemAlloc.h"
+
+#include "DnmGL/DnmGL.hpp"
 
 using namespace Microsoft::WRL;
 

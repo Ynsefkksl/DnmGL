@@ -57,3 +57,9 @@ enum class OS {
 #elif defined(__GNUC__)
     #define FORCE_INLINE [[gnu::always_inline]]
 #endif
+
+#ifdef DNMGL_EXPORTS
+    #define DNMGL_API __declspec(dllexport)
+#else
+    #define DNMGL_API __declspec(dllimport)
+#endif

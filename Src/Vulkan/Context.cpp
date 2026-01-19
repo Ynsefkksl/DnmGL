@@ -21,10 +21,6 @@
 
 #define DISPATCH_VK_FUNC(func_name) dispatcher.func_name = reinterpret_cast<PFN_##func_name>(m_instance.getProcAddr(#func_name))
 
-extern "C" __declspec(dllexport) DnmGL::Context* LoadContext() {
-    return new DnmGL::Vulkan::Context();
-}
-
 namespace DnmGL::Vulkan {
     static const std::vector<const char*> required_extensions {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME

@@ -1,5 +1,4 @@
 #include "DnmGL/DnmGL.hpp"
-#include "DnmGL/ContextLoader.hpp"
 #include "DnmGL/Sprite.hpp"
 #include "DnmGL/Utility/Container.hpp"
 
@@ -13,9 +12,6 @@
 #include <exception>
 #include <print>
 #include <array>
-
-constexpr std::string_view VulkanPath = "../Vulkan/DnmGL_Vulkan";
-constexpr std::string_view D3D12Path = "../D3D12/DnmGL_D3D12";
 
 constexpr DnmGL::Uint2 WindowExtent = {1280, 720};
 constexpr DnmGL::SampleCount MsaaValue = DnmGL::SampleCount::e1;
@@ -139,15 +135,20 @@ int main(int argc, char** args) {
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    GLFWwindow *window = glfwCreateWindow(WindowExtent.x, WindowExtent.y, "Sprite", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(WindowExtent.x, WindowExtent.y, "Sprite Demo", nullptr, nullptr);
     if (!window) {
         glfwTerminate();
         return -1;
     }
 
     try {
-        DnmGL::ContextLoader ctx_loader(use_d3d12 ? D3D12Path : VulkanPath);
-        auto* context = ctx_loader.GetContext();
+        DnmGL::Context *context{};
+        if (use_d3d12) {
+            context = DnmGL::CreateD3D12Context();
+        }
+        else {
+            context = DnmGL::CreateVulkanContext();
+        }
 
         DnmGLAssert(context, "context is null!!!")
 

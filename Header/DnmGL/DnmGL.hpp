@@ -746,6 +746,11 @@ namespace DnmGL {
 
     using CallbackFunc = std::function<void(std::string_view message, MessageType error, std::string_view source)>;
 
+    //TODO: maybe i do checking api support 
+    extern "C" DNMGL_API DnmGL::Context *CreateVulkanContext();
+    extern "C" DNMGL_API DnmGL::Context *CreateD3D12Context();
+    extern "C" DNMGL_API DnmGL::Context *CreateMetalContext();
+
     class Context {
     public:
         virtual ~Context() = default;
