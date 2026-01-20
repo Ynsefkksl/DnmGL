@@ -34,6 +34,7 @@
 //TODO: fix d3d12 sync
 //TODO: complate for d3d12 generate mipmap function
 //TODO: fix d3d12 transparency
+//TODO: stencil is broken
 namespace DnmGL {
     class Context;
     class CommandBuffer;
@@ -451,7 +452,7 @@ namespace DnmGL {
     };
 
     struct RenderAttachment {
-        DnmGL::Image* image;
+        DnmGL::Image *image;
         ImageSubresource subresource;
     };
 
@@ -550,10 +551,10 @@ namespace DnmGL {
 
     struct GraphicsPipelineDesc {
         std::string vertex_entry_point;
-        Shader* vertex_shader;
+        Shader *vertex_shader;
         std::string fragment_entry_point;
-        Shader* fragment_shader;
-        ResourceManager* resource_manager;
+        Shader *fragment_shader;
+        ResourceManager *resource_manager;
         std::vector<ImageFormat> color_attachment_formats;
         std::vector<VertexFormat> vertex_binding_formats;
         // depth_format ignore if !(depth_test || depth_write) 
@@ -582,21 +583,21 @@ namespace DnmGL {
 
     struct ComputePipelineDesc {;
         std::string shader_entry_point;
-        Shader* shader;
-        ResourceManager* resource_manager;
+        Shader *shader;
+        ResourceManager *resource_manager;
     };
 
     struct BufferToBufferCopyDesc {
-        Buffer* src_buffer;
-        Buffer* dst_buffer;
+        Buffer *src_buffer;
+        Buffer *dst_buffer;
         uint32_t src_offset;
         uint32_t dst_offset;
         uint64_t copy_size;
     };
 
     struct BufferToImageCopyDesc {
-        Buffer* src_buffer;
-        Image* dst_image;
+        Buffer *src_buffer;
+        Image *dst_image;
         ImageSubresource image_subresource;
         uint32_t buffer_offset;
         Uint3 copy_offset;
@@ -604,8 +605,8 @@ namespace DnmGL {
     };
 
     struct ImageToImageCopyDesc {
-        Image* src_image;
-        Image* dst_image;
+        Image *src_image;
+        Image *dst_image;
         ImageSubresource src_image_subresource;
         ImageSubresource dst_image_subresource;
         Uint3 src_offset;
@@ -614,8 +615,8 @@ namespace DnmGL {
     };
 
     struct ImageToBufferCopyDesc {
-        Image* src_image;
-        Buffer* dst_buffer;
+        Image *src_image;
+        Buffer *dst_buffer;
         ImageSubresource image_subresource;
         uint32_t buffer_offset;
         Uint3 copy_offset;
@@ -636,7 +637,7 @@ namespace DnmGL {
             out = uint32_t(depth_load) << 30;
             out |= uint32_t(stencil_load) << 28;
             for (uint32_t i{}; i < 8; i++) {
-                out |= uint32_t(color_load[i]) << (26 - (i * 2));
+                out |= uint32_t(color_load[i]) << (26 - (i  *2));
             }
             out |= uint32_t(depth_store) << 11;
             out |= uint32_t(stencil_store) << 10;
@@ -686,8 +687,8 @@ namespace DnmGL {
     };
 
     struct WinWindowHandle {
-        void* hwnd;
-        void* hInstance;
+        void *hwnd;
+        void *hInstance;
     };
 
     struct MacWindowHandle {
@@ -779,8 +780,8 @@ namespace DnmGL {
         [[nodiscard]] virtual std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc&) noexcept = 0;
         [[nodiscard]] virtual ContextState GetContextState() noexcept = 0;
 
-        [[nodiscard]] constexpr DnmGL::Image* GetPlaceholderImage() const noexcept { return placeholder_image; };
-        [[nodiscard]] constexpr DnmGL::Sampler* GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
+        [[nodiscard]] constexpr DnmGL::Image *GetPlaceholderImage() const noexcept { return placeholder_image; };
+        [[nodiscard]] constexpr DnmGL::Sampler *GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
         [[nodiscard]] constexpr const std::filesystem::path& GetShaderDirectory() const noexcept { return shader_directory; };
         [[nodiscard]] constexpr const auto& GetSwapchainSettings() const noexcept { return swapchain_settings; };
         [[nodiscard]] constexpr std::filesystem::path GetShaderPath(std::string_view filename) const noexcept;
@@ -819,7 +820,7 @@ namespace DnmGL {
         RHIObject& operator=(RHIObject&&) = delete;
         RHIObject& operator=(RHIObject&) = delete;
 
-        Context* context;
+        Context *context;
     };
 
     class Framebuffer : public RHIObject {
@@ -863,7 +864,7 @@ namespace DnmGL {
 
         [[nodiscard]] constexpr const auto& GetDesc() const noexcept { return m_desc; }
     protected:
-        uint8_t* m_mapped_ptr;
+        uint8_t *m_mapped_ptr;
 
         DnmGL::BufferDesc m_desc;
     };
@@ -903,7 +904,7 @@ namespace DnmGL {
         [[nodiscard]] constexpr const auto& GetFilename() const noexcept { return m_filename; }
         [[nodiscard]] constexpr std::filesystem::path GetFilePath() const noexcept { return context->GetShaderPath(m_filename); }
         [[nodiscard]] constexpr std::span<const EntryPointInfo> GetEntryPoints() const noexcept { return m_entry_point_infos; }
-        [[nodiscard]] constexpr const EntryPointInfo* GetEntryPoint(std::string_view name) const noexcept;
+        [[nodiscard]] constexpr const EntryPointInfo *GetEntryPoint(std::string_view name) const noexcept;
     protected:
         const std::string m_filename;
         std::vector<EntryPointInfo> m_entry_point_infos;
@@ -994,7 +995,7 @@ namespace DnmGL {
         void BeginComputePass();
         void EndComputePass();
 
-        void BindPipeline(const DnmGL::ComputePipeline* pipeline);
+        void BindPipeline(const DnmGL::ComputePipeline *pipeline);
 
         void Draw(uint32_t vertex_count, uint32_t instance_count);
         void DrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset);
@@ -1026,10 +1027,10 @@ namespace DnmGL {
 
         virtual void IUploadData(DnmGL::Image *image, 
                                 const ImageSubresource& subresource, 
-                                const void* data, 
+                                const void *data, 
                                 Uint3 copy_extent, 
                                 Uint3 copy_offset) = 0;
-        virtual void IUploadData(DnmGL::Buffer *buffer, const void* data, uint32_t size, uint32_t offset) = 0;
+        virtual void IUploadData(DnmGL::Buffer *buffer, const void *data, uint32_t size, uint32_t offset) = 0;
 
         virtual void IBeginRendering(const BeginRenderingDesc& desc) = 0;
         virtual void IEndRendering() = 0;
@@ -1040,7 +1041,7 @@ namespace DnmGL {
         virtual void IBeginComputePass() = 0;
         virtual void IEndComputePass() = 0;
 
-        virtual void IBindPipeline(const DnmGL::ComputePipeline* pipeline) = 0;
+        virtual void IBindPipeline(const DnmGL::ComputePipeline *pipeline) = 0;
 
         virtual void IDraw(uint32_t vertex_count, uint32_t instance_count) = 0;
         virtual void IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) = 0;
@@ -1253,7 +1254,7 @@ namespace DnmGL {
         DnmGLAssert(buffer, "buffer cannot be null")
         if (data.empty()) return;
 
-        IUploadData(buffer, data.data(), data.size() * sizeof(T), offset);
+        IUploadData(buffer, data.data(), data.size()  *sizeof(T), offset);
     }
 
     template <typename T> 
@@ -1266,11 +1267,11 @@ namespace DnmGL {
         DnmGLAssert(image, "image cannot be null")
         if (data.empty()) return;
 
-        const auto copy_size = copy_extent.x * copy_extent.y * copy_extent.z * GetFormatSize(image->GetDesc().format);
-        if (data.size() * sizeof(T) < copy_size) [[unlikely]]
+        const auto copy_size = copy_extent.x  *copy_extent.y  *copy_extent.z  *GetFormatSize(image->GetDesc().format);
+        if (data.size()  *sizeof(T) < copy_size) [[unlikely]]
             context->Message(
                 std::format("data size must be equal or bigger than copy_extent pixel count; data.size(): {}, copy_extent pixel count {}",
-                data.size() * sizeof(T), copy_size), 
+                data.size()  *sizeof(T), copy_size), 
                 MessageType::eInvalidBehavior);
 
         IUploadData(image, subresource, data.data(), copy_extent, copy_offset);
@@ -1341,7 +1342,7 @@ namespace DnmGL {
             bool vertex_shader_is_there{};
             bool fragment_shader_is_there{};
 
-            for (const auto* shader : m_desc.resource_manager->GetShaders()) {
+            for (const auto *shader : m_desc.resource_manager->GetShaders()) {
                 vertex_shader_is_there |= m_desc.vertex_shader == shader;
                 fragment_shader_is_there |= m_desc.fragment_shader == shader;
             }
@@ -1368,7 +1369,7 @@ namespace DnmGL {
         {
             bool shader_is_there = false;
 
-            for (const auto* shader : m_desc.resource_manager->GetShaders())
+            for (const auto *shader : m_desc.resource_manager->GetShaders())
                 shader_is_there |= m_desc.shader == shader;
 
             DnmGLAssert(shader_is_there, "shader must be in resource manager")

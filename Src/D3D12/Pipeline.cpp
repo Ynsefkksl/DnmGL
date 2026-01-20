@@ -124,11 +124,14 @@ namespace DnmGL::D3D12 {
         depth_stencil_desc.StencilEnable = m_desc.stencil_test;
         depth_stencil_desc.DepthFunc = D3D12ComparisonFunc(m_desc.depth_test_compare_op);
         depth_stencil_desc.DepthWriteMask = m_desc.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
-        //TODO:
-        // depth_stencil_desc.StencilReadMask = {};
-        // depth_stencil_desc.StencilWriteMask = {};
-        // depth_stencil_desc.FrontFace = {};
-        // depth_stencil_desc.BackFace = {};
+        // depth_stencil_desc.StencilReadMask = 0xFF;
+        // depth_stencil_desc.StencilWriteMask = 0xFF;
+        // depth_stencil_desc.FrontFace = D3D12_DEPTH_STENCILOP_DESC{
+
+        // };
+        // depth_stencil_desc.BackFace = D3D12_DEPTH_STENCILOP_DESC{
+
+        // };
 
         //TODO: fix this
         D3D12_INPUT_LAYOUT_DESC input_desc{};
@@ -139,15 +142,23 @@ namespace DnmGL::D3D12 {
         pipeline_desc.VS.BytecodeLength = vertex_shader_blob->GetBufferSize();
         pipeline_desc.PS.pShaderBytecode = fragment_shader_blob->GetBufferPointer();
         pipeline_desc.PS.BytecodeLength = fragment_shader_blob->GetBufferSize();
-        pipeline_desc.BlendState.RenderTarget->RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
         pipeline_desc.RasterizerState = rasterizer_desc;
-        //pipeline_desc.DepthStencilState = depth_stencil_desc;
+        pipeline_desc.DepthStencilState = depth_stencil_desc;
         pipeline_desc.InputLayout = input_desc;
         pipeline_desc.PrimitiveTopologyType = D3D12TopologyType(m_desc.topology);
         pipeline_desc.NumRenderTargets = m_desc.color_attachment_formats.size();
 
-        for (const auto i : Counter(m_desc.color_attachment_formats.size()))
+        for (const auto i : Counter(m_desc.color_attachment_formats.size())) {
             pipeline_desc.RTVFormats[i] = ToDxgiFormat(m_desc.color_attachment_formats[i]);
+            pipeline_desc.BlendState.RenderTarget[i].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+            pipeline_desc.BlendState.RenderTarget[i].BlendEnable = m_desc.color_blend;
+            pipeline_desc.BlendState.RenderTarget[i].BlendOp = D3D12_BLEND_OP_ADD;
+            pipeline_desc.BlendState.RenderTarget[i].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+            pipeline_desc.BlendState.RenderTarget[i].SrcBlend = D3D12_BLEND_SRC_ALPHA; 
+            pipeline_desc.BlendState.RenderTarget[i].DestBlend = D3D12_BLEND_INV_SRC_ALPHA; 
+            pipeline_desc.BlendState.RenderTarget[i].SrcBlendAlpha = D3D12_BLEND_ONE;
+            pipeline_desc.BlendState.RenderTarget[i].DestBlendAlpha = D3D12_BLEND_ZERO;
+        }
 
         pipeline_desc.DSVFormat = ToDxgiFormat(m_desc.depth_stencil_format);
         pipeline_desc.SampleDesc = DXGI_SAMPLE_DESC{static_cast<uint32_t>(m_desc.msaa), 0};

@@ -280,8 +280,8 @@ namespace DnmGL::Vulkan {
                     .setColorBlendOp(vk::BlendOp::eAdd)
                     .setSrcColorBlendFactor(vk::BlendFactor::eSrcAlpha)
                     .setDstColorBlendFactor(vk::BlendFactor::eOneMinusSrcAlpha)
-                    .setDstAlphaBlendFactor(vk::BlendFactor::eZero)
                     .setSrcAlphaBlendFactor(vk::BlendFactor::eOne)
+                    .setDstAlphaBlendFactor(vk::BlendFactor::eZero)
                 );
 
         vk::PipelineColorBlendStateCreateInfo color_blend_info{};
