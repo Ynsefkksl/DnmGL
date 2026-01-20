@@ -24,13 +24,16 @@
 
 //TODO: add vulkan supported feature override
 //TODO: support VK_KHR_imageless_framebuffer
+//TODO: support VK_EXT_descriptor_buffer (just for learn, thats no advantage for this project)
 //TODO: add push constant support (or alternative something)
-//TODO: test offline rendering
-//TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡ 
-//TODO: find a solution to dxil.dll
+//TODO: test offline rendering for both api's
+//TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡
 //TODO: fix resource manager function buffer offset, size, element problem
-//TODO: fix Vulkan readonly image problem (readonly image type storage can be equivalent to sampled storage)
+//TODO: fix Vulkan readonly image problem (readonly image type can be equivalent to sampled or storage)
 //TODO: D3D12 alighment problem
+//TODO: fix d3d12 sync
+//TODO: complate for d3d12 generate mipmap function
+//TODO: fix d3d12 transparency
 namespace DnmGL {
     class Context;
     class CommandBuffer;

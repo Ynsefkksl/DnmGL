@@ -19,7 +19,7 @@ using namespace Microsoft::WRL;
 #define D3D12Context reinterpret_cast<D3D12::Context *>(context)
 
 namespace DnmGL::D3D12 {
-    class CommandBuffer;
+   class CommandBuffer;
     class Shader;
     class Buffer;
     class Image;
@@ -27,11 +27,21 @@ namespace DnmGL::D3D12 {
     class GraphicsPipeline;
     class ComputePipeline;
     class Sampler;
+    class Framebuffer;
 
     inline std::string HresultToString(HRESULT hr) {
         _com_error err(hr);
         return err.ErrorMessage();
     }
+
+    [[nodiscard]] inline uint32_t GetSubresourceIndex(const DnmGL::Image &image, ImageSubresource subresource) {
+        return D3D12CalcSubresource(
+            subresource.base_mipmap, 
+            subresource.base_layer, 
+            0,
+            image.GetDesc().mipmap_levels,
+            image.GetDesc().type == ImageType::e2D ? image.GetDesc().extent.z : 1);
+    } 
 
     class Context final : public DnmGL::Context {
     public:

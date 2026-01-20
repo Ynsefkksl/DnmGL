@@ -29,10 +29,12 @@ namespace DnmGL::D3D12 {
         [[nodiscard]] auto* GetResource() const noexcept { return m_image.Get(); }
         [[nodiscard]] auto* GetAllocation() const noexcept { return m_allocation; }
         [[nodiscard]] auto GetState() const noexcept { return m_state; }
+        [[nodiscard]] auto GetFormat() const noexcept { return m_format; }
         [[nodiscard]] auto GetIdealState() const noexcept { return GetIdealImageState(m_desc.usage_flags); }
     private:
         ComPtr<ID3D12Resource2> m_image;
         D3D12MA::Allocation* m_allocation;
+        DXGI_FORMAT m_format;
 
         D3D12_RESOURCE_STATES m_state;
         friend D3D12::CommandBuffer;

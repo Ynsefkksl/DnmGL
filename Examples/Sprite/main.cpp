@@ -16,20 +16,20 @@
 constexpr DnmGL::Uint2 WindowExtent = {1280, 720};
 constexpr DnmGL::SampleCount MsaaValue = DnmGL::SampleCount::e1;
 
-constexpr DnmGL::Float2 spaceship_scale = {0.1, 0.1};
-constexpr DnmGL::Float2 enemy_spaceship_scale = {0.1, 0.1};
-constexpr DnmGL::Float2 bullet_scale = {0.03, 0.03};
-constexpr DnmGL::Float2 enemy_bullet_scale = {0.03, 0.03};
+constexpr DnmGL::Float2 SpaceshipScale = {0.1, 0.1};
+constexpr DnmGL::Float2 EnemySpaceshipScale = {0.1, 0.1};
+constexpr DnmGL::Float2 BulletScale = {0.03, 0.03};
+constexpr DnmGL::Float2 EnemyBulletScale = {0.03, 0.03};
 
-constexpr DnmGL::Float4 spaceship_uv_coords = {0, 0.5, 0.49, 1};
-constexpr DnmGL::Float4 enemy_spaceship_uv_coords = {0, 0.5, 0.49, 0.0};
-constexpr DnmGL::Float4 bullet_uv_coords = {0.75, 1.0, 1.0, 0.75};
-constexpr DnmGL::Float4 enemy_bullet_uv_coords = {0.5, 1.0, 0.75, 0.75};
+constexpr DnmGL::Float4 SpaceshipUvCoords = {0, 0.5, 0.49, 1};
+constexpr DnmGL::Float4 EnemySpaceshipUvCoords = {0, 0.5, 0.49, 0.0};
+constexpr DnmGL::Float4 BulletUvCoords = {0.75, 1.0, 1.0, 0.75};
+constexpr DnmGL::Float4 EnemyBulletUvCoords = {0.5, 1.0, 0.75, 0.75};
 
-constexpr float spaceship_speed = 0.005;
-constexpr float enemy_speed = -0.002;
-constexpr float bullet_speed = 0.002;
-constexpr float enemy_bullet_speed = -0.002;
+constexpr float SpaceshipSpeed = 0.005;
+constexpr float EnemySpeed = -0.002;
+constexpr float BulletSpeed = 0.002;
+constexpr float EnemyBulletSpeed = -0.002;
 
 enum class ObjectType {
     eSpaceship = 0,
@@ -39,46 +39,46 @@ enum class ObjectType {
 };
 
 constexpr std::array speeds {
-    spaceship_speed,
-    enemy_speed,
-    bullet_speed,
-    enemy_bullet_speed
+    SpaceshipSpeed,
+    EnemySpeed,
+    BulletSpeed,
+    EnemyBulletSpeed
 };
 
 constexpr std::array sprite_template {
     DnmGL::SpriteData {
         .color = {0,0,0,0},
-        .uv_up_right = {spaceship_uv_coords.x, spaceship_uv_coords.y},
-        .uv_bottom_left = {spaceship_uv_coords.z, spaceship_uv_coords.w},
+        .uv_up_right = {SpaceshipUvCoords.x, SpaceshipUvCoords.y},
+        .uv_bottom_left = {SpaceshipUvCoords.z, SpaceshipUvCoords.w},
         .position = {0, -2},
-        .scale = spaceship_scale,
+        .scale = SpaceshipScale,
         .angle = 0,
         .color_factor = 0.f,
     },
     DnmGL::SpriteData {
         .color = {0,0,0,0},
-        .uv_up_right = {enemy_spaceship_uv_coords.x, enemy_spaceship_uv_coords.y},
-        .uv_bottom_left = {enemy_spaceship_uv_coords.z, enemy_spaceship_uv_coords.w},
+        .uv_up_right = {EnemySpaceshipUvCoords.x, EnemySpaceshipUvCoords.y},
+        .uv_bottom_left = {EnemySpaceshipUvCoords.z, EnemySpaceshipUvCoords.w},
         .position = {0, -2},
-        .scale = enemy_spaceship_scale,
+        .scale = EnemySpaceshipScale,
         .angle = 0,
         .color_factor = 0.f,
     },
     DnmGL::SpriteData {
         .color = {0,0,0,0},
-        .uv_up_right = {bullet_uv_coords.x, bullet_uv_coords.y},
-        .uv_bottom_left = {bullet_uv_coords.z, bullet_uv_coords.w},
+        .uv_up_right = {BulletUvCoords.x, BulletUvCoords.y},
+        .uv_bottom_left = {BulletUvCoords.z, BulletUvCoords.w},
         .position = {0, -2},
-        .scale = bullet_scale,
+        .scale = BulletScale,
         .angle = 0,
         .color_factor = 0.f,
     },
     DnmGL::SpriteData {
         .color = {0,0,0,0},
-        .uv_up_right = {enemy_bullet_uv_coords.x, enemy_bullet_uv_coords.y},
-        .uv_bottom_left = {enemy_bullet_uv_coords.z, enemy_bullet_uv_coords.w},
+        .uv_up_right = {EnemyBulletUvCoords.x, EnemyBulletUvCoords.y},
+        .uv_bottom_left = {EnemyBulletUvCoords.z, EnemyBulletUvCoords.w},
         .position = {0, -2},
-        .scale = enemy_bullet_scale,
+        .scale = EnemyBulletScale,
         .angle = 0,
         .color_factor = 0.f,
     },
@@ -207,7 +207,7 @@ int main(int argc, char** args) {
             .extent = WindowExtent,
             .msaa = MsaaValue,
             .init_capacity = 512 * 1024,
-            .color_blend = false
+            .color_blend = true
         });
 
         DnmGL::SpriteCamera camera({float(WindowExtent.x)/WindowExtent.y, 1}, 0.1, 10);
@@ -242,13 +242,13 @@ int main(int argc, char** args) {
 
                 {
                     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-                        player.m_pos.y += spaceship_speed;
+                        player.m_pos.y += SpaceshipSpeed;
                     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-                        player.m_pos.y +=-spaceship_speed;
+                        player.m_pos.y +=-SpaceshipSpeed;
                     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-                        player.m_pos.x += spaceship_speed;
+                        player.m_pos.x += SpaceshipSpeed;
                     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-                        player.m_pos.x +=-spaceship_speed;
+                        player.m_pos.x +=-SpaceshipSpeed;
                 }
     
                 context->Render([&] (DnmGL::CommandBuffer* command_buffer) -> bool {
@@ -272,7 +272,7 @@ int main(int argc, char** args) {
                     player.UpdatePos();
 
                     for (auto& object : enemys) {
-                        object.m_pos.y += enemy_speed;
+                        object.m_pos.y += EnemySpeed;
                         if (object.m_pos.y < -1) {
                             m_deleted_enemys.emplace_back(object.m_object_handle);
                         }

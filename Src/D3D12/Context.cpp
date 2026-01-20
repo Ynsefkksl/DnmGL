@@ -148,7 +148,7 @@ namespace DnmGL::D3D12 {
         m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_command_allocator));
 
         {
-            m_device->CreateFence(0, D3D12_FENCE_FLAGS::D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence));
+            m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence));
             m_fence_value = 1;
 
             m_fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);

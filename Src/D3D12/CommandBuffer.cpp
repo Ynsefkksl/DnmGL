@@ -2,6 +2,7 @@
 #include "DnmGL/D3D12/Pipeline.hpp"
 #include "DnmGL/D3D12/Buffer.hpp"
 #include "DnmGL/D3D12/Image.hpp"
+#include "DnmGL/D3D12/Framebuffer.hpp"
 #include "DnmGL/D3D12/ResourceManager.hpp"
 #include "DnmGL/D3D12/ToDxgiFormat.hpp"
 
@@ -59,12 +60,7 @@ namespace DnmGL::D3D12 {
         const D3D12_TEXTURE_COPY_LOCATION src{
             .pResource = typed_buffer->GetResource(),
             .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
-            .SubresourceIndex = D3D12CalcSubresource(
-                desc.image_subresource.base_mipmap, 
-                desc.image_subresource.base_layer, 
-                0,
-                desc.src_image->GetDesc().mipmap_levels,
-                desc.src_image->GetDesc().type == ImageType::e2D ? desc.src_image->GetDesc().extent.z : 1)
+            .SubresourceIndex =  GetSubresourceIndex(*desc.src_image, desc.image_subresource)
         };
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
@@ -140,23 +136,13 @@ namespace DnmGL::D3D12 {
         const D3D12_TEXTURE_COPY_LOCATION dst{
             .pResource = typed_dst_image->GetResource(),
             .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
-            .SubresourceIndex = D3D12CalcSubresource(
-                desc.dst_image_subresource.base_mipmap, 
-                desc.dst_image_subresource.base_layer, 
-                0,
-                desc.dst_image->GetDesc().mipmap_levels,
-                desc.dst_image->GetDesc().type == ImageType::e2D ? desc.dst_image->GetDesc().extent.z : 1)
+            .SubresourceIndex = GetSubresourceIndex(*desc.dst_image, desc.dst_image_subresource)
         };
 
         const D3D12_TEXTURE_COPY_LOCATION src{
             .pResource = typed_src_image->GetResource(),
             .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
-            .SubresourceIndex = D3D12CalcSubresource(
-                desc.src_image_subresource.base_mipmap, 
-                desc.src_image_subresource.base_layer, 
-                0,
-                desc.dst_image->GetDesc().mipmap_levels,
-                desc.dst_image->GetDesc().type == ImageType::e2D ? desc.dst_image->GetDesc().extent.z : 1)
+            .SubresourceIndex = GetSubresourceIndex(*desc.src_image, desc.src_image_subresource)
         };
 
         const D3D12_BOX box {
@@ -209,12 +195,7 @@ namespace DnmGL::D3D12 {
         auto *typed_image = static_cast<D3D12::Image *>(desc.dst_image);
         auto *typed_buffer = static_cast<D3D12::Buffer *>(desc.src_buffer);
 
-        const auto subresource_index = D3D12CalcSubresource(
-                desc.image_subresource.base_mipmap, 
-                desc.image_subresource.base_layer, 
-                0,
-                desc.dst_image->GetDesc().mipmap_levels,
-                desc.dst_image->GetDesc().type == ImageType::e2D ? desc.dst_image->GetDesc().extent.z : 1);
+        const auto subresource_index = GetSubresourceIndex(*desc.dst_image, desc.image_subresource);
 
         const D3D12_TEXTURE_COPY_LOCATION dst{
             .pResource = typed_image->GetResource(),
@@ -446,77 +427,19 @@ namespace DnmGL::D3D12 {
 
         std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> render_target_descs{};
         D3D12_RENDER_PASS_DEPTH_STENCIL_DESC depth_stencil_desc{};
-        bool depth_stencil = false;
+        const bool depth_stencil = desc.pipeline->HasDepthAttachment();
 
         if (desc.framebuffer) {
-            DnmGLAssert(false, "framebuffer not implamented")
+            render_target_descs.reserve(desc.framebuffer->ColorAttachmentCount());
+            FillBeginRenderpassForFramebuffer(render_target_descs, depth_stencil_desc, desc, *static_cast<D3D12::Framebuffer *>(desc.framebuffer));
         }
-        else {
-            auto *render_target= D3D12Context->GetRenderTarget(D3D12Context->GetFrameIndex());
-
-            const D3D12_RESOURCE_BARRIER resource_barrier{
-                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-                .Flags = {},
-                .Transition = {
-                    render_target,
-                    0,
-                    D3D12_RESOURCE_STATE_PRESENT,  
-                    D3D12_RESOURCE_STATE_RENDER_TARGET  
-                }
-            };
-            m_command_list->ResourceBarrier(1, &resource_barrier);
-
-            CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(D3D12Context->GetRTVHeap()->GetCPUDescriptorHandleForHeapStart());
-            cpu_handle.Offset(D3D12Context->GetFrameIndex(), D3D12Context->GetRTVDescriptorSize());
-
-            render_target_descs.emplace_back(
-                cpu_handle,
-                D3D12_RENDER_PASS_BEGINNING_ACCESS{
-                    BeginingAccessType(desc.attachment_ops.color_load[0]),
-                    desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?D3D12_CLEAR_VALUE{
-                        .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
-                        .Color{
-                            desc.color_clear_values[0].r,
-                            desc.color_clear_values[0].g,
-                            desc.color_clear_values[0].b,
-                            desc.color_clear_values[0].a
-                        }
-                    } : D3D12_CLEAR_VALUE{}
-                },
-                D3D12_RENDER_PASS_ENDING_ACCESS{
-                    EndingAccessType(desc.attachment_ops.color_store[0], desc.pipeline->HasMsaa()),
-                    desc.pipeline->HasMsaa() ?
-                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{} :
-                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
-                }
-            );
-
-            depth_stencil_desc.cpuDescriptor = D3D12Context->GetDSVheap()->GetCPUDescriptorHandleForHeapStart();
-            depth_stencil_desc.DepthBeginningAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS{
-                    BeginingAccessType(desc.attachment_ops.depth_load),
-                    desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?
-                    D3D12_CLEAR_VALUE{
-                        .Format = DXGI_FORMAT_D16_UNORM,
-                        .DepthStencil {
-                            desc.depth_stencil_clear_value.depth,
-                            static_cast<uint8_t>(desc.depth_stencil_clear_value.stencil)
-                        }
-                    } : D3D12_CLEAR_VALUE{}
-                };
-            depth_stencil_desc.DepthEndingAccess = D3D12_RENDER_PASS_ENDING_ACCESS{
-                    EndingAccessType(desc.attachment_ops.depth_store, desc.pipeline->HasMsaa()),
-                        desc.pipeline->HasMsaa() ?
-                        D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{} :
-                        D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
-                };
-            depth_stencil_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS;
-            depth_stencil_desc.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS;
-        }
+        else
+            FillBeginRenderpassForPresenting(render_target_descs, depth_stencil_desc, desc);
 
         m_command_list->BeginRenderPass(
             render_target_descs.size(), 
             render_target_descs.data(), 
-            &depth_stencil_desc, 
+            depth_stencil ? &depth_stencil_desc : nullptr, 
             D3D12_RENDER_PASS_FLAG_NONE);
 
         m_command_list->SetPipelineState(typed_pipeline->GetPipelineState());
@@ -545,6 +468,178 @@ namespace DnmGL::D3D12 {
                 }
             };
             m_command_list->ResourceBarrier(1, &resource_barrier);
+        }
+    }
+
+    void CommandBuffer::IBindVertexBuffer(const DnmGL::Buffer *buffer, uint64_t offset) {
+        const D3D12_VERTEX_BUFFER_VIEW vbv{
+            static_cast<const D3D12::Buffer *>(buffer)->GetResource()->GetGPUVirtualAddress(),
+            buffer->GetDesc().element_size * buffer->GetDesc().element_count,
+            buffer->GetDesc().element_size,
+        };
+        m_command_list->IASetVertexBuffers(
+            offset, 
+            1,
+            &vbv);
+    }
+    
+    void CommandBuffer::IBindIndexBuffer(const DnmGL::Buffer *buffer, uint64_t offset, DnmGL::IndexType index_type) {
+        const D3D12_INDEX_BUFFER_VIEW ibv{
+            static_cast<const D3D12::Buffer *>(buffer)->GetResource()->GetGPUVirtualAddress(),
+            buffer->GetDesc().element_size * buffer->GetDesc().element_count,
+            index_type == IndexType::eUint16 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT
+        };
+        m_command_list->IASetIndexBuffer(
+            &ibv);
+    }
+
+    void CommandBuffer::FillBeginRenderpassForPresenting(
+        std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> &render_target_descs, 
+        D3D12_RENDER_PASS_DEPTH_STENCIL_DESC &depth_stencil_desc,
+        const BeginRenderingDesc &desc) {
+        auto *render_target= D3D12Context->GetRenderTarget(D3D12Context->GetFrameIndex());
+
+        const D3D12_RESOURCE_BARRIER resource_barrier{
+            .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+            .Flags = {},
+            .Transition = {
+                render_target,
+                0,
+                D3D12_RESOURCE_STATE_PRESENT,  
+                D3D12_RESOURCE_STATE_RENDER_TARGET  
+            }
+        };
+        m_command_list->ResourceBarrier(1, &resource_barrier);
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(D3D12Context->GetRTVHeap()->GetCPUDescriptorHandleForHeapStart());
+        cpu_handle.Offset(D3D12Context->GetFrameIndex(), D3D12Context->GetRTVDescriptorSize());
+
+        render_target_descs.emplace_back(
+            cpu_handle,
+            D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                BeginingAccessType(desc.attachment_ops.color_load[0]),
+                desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?D3D12_CLEAR_VALUE{
+                    .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+                    .Color{
+                        desc.color_clear_values[0].r,
+                        desc.color_clear_values[0].g,
+                        desc.color_clear_values[0].b,
+                        desc.color_clear_values[0].a
+                    }
+                } : D3D12_CLEAR_VALUE{}
+            },
+            D3D12_RENDER_PASS_ENDING_ACCESS{
+                EndingAccessType(desc.attachment_ops.color_store[0], desc.pipeline->HasMsaa()),
+                desc.pipeline->HasMsaa() ?
+                D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{} :
+                D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+            }
+        );
+
+        depth_stencil_desc.cpuDescriptor = D3D12Context->GetDSVheap()->GetCPUDescriptorHandleForHeapStart();
+        depth_stencil_desc.DepthBeginningAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                BeginingAccessType(desc.attachment_ops.depth_load),
+                desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?
+                D3D12_CLEAR_VALUE{
+                    .Format = ToDxgiFormat(context->GetSwapchainSettings().depth_buffer_format),
+                    .DepthStencil {
+                        desc.depth_stencil_clear_value.depth,
+                        static_cast<uint8_t>(desc.depth_stencil_clear_value.stencil)
+                    }
+                } : D3D12_CLEAR_VALUE{}
+            };
+        depth_stencil_desc.DepthEndingAccess = D3D12_RENDER_PASS_ENDING_ACCESS{
+                EndingAccessType(desc.attachment_ops.depth_store, desc.pipeline->HasMsaa()),
+                    desc.pipeline->HasMsaa() ?
+                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{} :
+                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+            };
+        depth_stencil_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS;
+        depth_stencil_desc.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS;
+    }
+
+    void CommandBuffer::FillBeginRenderpassForFramebuffer(
+            std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> &render_target_descs, 
+            D3D12_RENDER_PASS_DEPTH_STENCIL_DESC &depth_stencil_desc,
+            const BeginRenderingDesc &desc,
+            D3D12::Framebuffer &framebuffer) {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(framebuffer.GetRtvHeap()->GetCPUDescriptorHandleForHeapStart());
+        
+        for (const auto i : Counter(framebuffer.ColorAttachmentCount())) {
+            auto *render_target = framebuffer.GetUserColorAttachments()[i];
+
+            D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_SUBRESOURCE_PARAMETERS resolve_subresource{};
+            resolve_subresource.SrcSubresource = {};
+            resolve_subresource.DstSubresource = framebuffer.GetUserColorSubresourceIndex()[i];
+
+            render_target_descs.emplace_back(
+                cpu_handle,
+                D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                    BeginingAccessType(desc.attachment_ops.color_load[i]),
+                    desc.attachment_ops.color_load[i] == AttachmentLoadOp::eClear ?D3D12_CLEAR_VALUE{
+                        .Format = render_target->GetFormat(),
+                        .Color{
+                            desc.color_clear_values[i].r,
+                            desc.color_clear_values[i].g,
+                            desc.color_clear_values[i].b,
+                            desc.color_clear_values[i].a
+                        }
+                    } : D3D12_CLEAR_VALUE{}
+                },
+                D3D12_RENDER_PASS_ENDING_ACCESS{
+                    EndingAccessType(desc.attachment_ops.color_store[i], framebuffer.HasMsaa()),
+                    framebuffer.HasMsaa() ?
+                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{
+                        .pSrcResource = framebuffer.GetMsaaColorAttachments()[i]->GetResource(),
+                        .pDstResource = framebuffer.GetUserColorAttachments()[i]->GetResource(),
+                        .SubresourceCount = 1,
+                        .pSubresourceParameters = &resolve_subresource,
+                        .Format = render_target->GetFormat(),
+                        .ResolveMode = D3D12_RESOLVE_MODE_AVERAGE,
+                    } :
+                    D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+                }
+            );
+
+            cpu_handle.Offset(D3D12Context->GetFrameIndex(), D3D12Context->GetRTVDescriptorSize());
+        }
+
+        {
+            D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_SUBRESOURCE_PARAMETERS resolve_subresource{};
+            resolve_subresource.SrcSubresource = {};
+            resolve_subresource.DstSubresource = framebuffer.GetDepthSubresource();
+
+            depth_stencil_desc.cpuDescriptor = D3D12Context->GetDSVheap()->GetCPUDescriptorHandleForHeapStart();
+            depth_stencil_desc.DepthBeginningAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                    BeginingAccessType(desc.attachment_ops.depth_load),
+                    desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?
+                    D3D12_CLEAR_VALUE{
+                        .Format = ToDxgiFormat(context->GetSwapchainSettings().depth_buffer_format),
+                        .DepthStencil {
+                            desc.depth_stencil_clear_value.depth,
+                            static_cast<uint8_t>(desc.depth_stencil_clear_value.stencil)
+                        }
+                    } : D3D12_CLEAR_VALUE{}
+                };
+            depth_stencil_desc.DepthEndingAccess = D3D12_RENDER_PASS_ENDING_ACCESS{
+                    EndingAccessType(desc.attachment_ops.depth_store, false),
+                        D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+                };
+            depth_stencil_desc.StencilBeginningAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS{
+                    BeginingAccessType(desc.attachment_ops.stencil_load),
+                    desc.attachment_ops.color_load[0] == AttachmentLoadOp::eClear ?
+                    D3D12_CLEAR_VALUE{
+                        .Format = ToDxgiFormat(context->GetSwapchainSettings().depth_buffer_format),
+                        .DepthStencil {
+                            desc.depth_stencil_clear_value.depth,
+                            static_cast<uint8_t>(desc.depth_stencil_clear_value.stencil)
+                        }
+                    } : D3D12_CLEAR_VALUE{}
+                };
+            depth_stencil_desc.StencilEndingAccess = D3D12_RENDER_PASS_ENDING_ACCESS{
+                    EndingAccessType(desc.attachment_ops.depth_store, false),
+                        D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
+                };
         }
     }
 }

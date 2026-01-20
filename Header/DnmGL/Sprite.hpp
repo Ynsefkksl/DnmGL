@@ -364,7 +364,7 @@ namespace DnmGL {
     }
 
     inline SpriteHandle SpriteManager::CreateSpriteBase(const DnmGL::SpriteData& sprite_data) {
-        memcpy(
+        std::memcpy(
             &reinterpret_cast<SpriteData*>(GetSpriteBufferMappedPtr())[GetSpriteCount()],
             &sprite_data, 
             sizeof(SpriteData)
@@ -374,7 +374,7 @@ namespace DnmGL {
     }
 
     inline std::vector<SpriteHandle> SpriteManager::CreateSpriteBase(std::span<const DnmGL::SpriteData> sprite_data) {
-        memcpy(
+        std::memcpy(
             &GetSpriteBufferMappedPtr()[GetSpriteCount()],
             sprite_data.data(), 
             sizeof(SpriteData) * sprite_data.size()
@@ -421,8 +421,10 @@ namespace DnmGL {
             return;
         }
 
-        memcpy(
-            &((*(GetSpriteBufferMappedPtr() + handle.GetValue())).*member),
+        auto &sprite_data = *(GetSpriteBufferMappedPtr() + handle.GetValue());
+
+        std::memcpy(
+            &(sprite_data.*member),
             &data,
             sizeof(data)
         );
@@ -433,7 +435,7 @@ namespace DnmGL {
             return;
         }
 
-        memcpy(
+        std::memcpy(
             GetSpriteBufferMappedPtr() + handle.GetValue(),
             &sprite_data,
             sizeof(SpriteData)
@@ -463,7 +465,7 @@ namespace DnmGL {
         DnmGLAssert(m_camera_ptr , "camera cannot be null");
 
         auto *mapped_ptr = m_camera_buffer->GetMappedPtr();
-        memcpy(mapped_ptr, &m_camera_ptr->GetCameraData(), sizeof(SpriteCameraData));
+        std::memcpy(mapped_ptr, &m_camera_ptr->GetCameraData(), sizeof(SpriteCameraData));
 
         command_buffer->Draw(4, m_sprite_count);
     }

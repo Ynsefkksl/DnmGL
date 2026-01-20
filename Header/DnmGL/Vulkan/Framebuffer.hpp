@@ -14,7 +14,7 @@ namespace DnmGL::Vulkan {
         [[nodiscard]] constexpr std::span<Vulkan::Image *> GetUserColorAttachments() noexcept { return m_user_color_attachments; }
         [[nodiscard]] constexpr Vulkan::Image * GetUserDepthStencilAttachment() noexcept { return m_user_depth_stencil_attachment; }
 
-        [[nodiscard]] constexpr std::span<const vk::ImageView> GetAttachments() const noexcept { return std::span(m_attachments); }
+        [[nodiscard]] constexpr std::span<const vk::ImageView> GetAttachments() const noexcept { return m_attachments; }
     protected:
         std::unique_ptr<Vulkan::Image> CreateResource(Uint2 extent, ImageUsageFlags usage, DnmGL::ImageFormat format, SampleCount sample_count) noexcept;
         void SetAttachment(std::span<const DnmGL::RenderAttachment> color_attachments, 

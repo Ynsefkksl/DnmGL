@@ -29,6 +29,7 @@ namespace DnmGL::D3D12 {
 
     Image::Image(D3D12::Context& ctx, const DnmGL::ImageDesc& desc)
     : DnmGL::Image(ctx, desc) {
+        m_format = ToDxgiFormat(m_desc.format);
         D3D12_RESOURCE_DESC resourceDesc = {};
         resourceDesc.Dimension = GetDimantion(desc.type);
         resourceDesc.Alignment = 0;
@@ -36,7 +37,7 @@ namespace DnmGL::D3D12 {
         resourceDesc.Height = m_desc.extent.y;
         resourceDesc.DepthOrArraySize = m_desc.extent.z;
         resourceDesc.MipLevels = m_desc.mipmap_levels;
-        resourceDesc.Format = ToDxgiFormat(m_desc.format);
+        resourceDesc.Format = m_format;
         resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
         resourceDesc.Flags = GetResourceFlags(m_desc.usage_flags);
         resourceDesc.SampleDesc.Count = uint32_t(desc.sample_count);
