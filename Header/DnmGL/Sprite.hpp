@@ -274,8 +274,7 @@ namespace DnmGL {
             const ResourceDesc resource_desc[] = {
                 {
                     .buffer = m_sprite_buffer.get(),
-                    .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count * m_sprite_buffer->GetDesc().element_size),
+                    .element_count = m_sprite_buffer->GetDesc().element_count,
                     .binding = 0,
                     .array_element = 0,
                 },
@@ -287,7 +286,7 @@ namespace DnmGL {
                 {
                     .buffer = m_camera_buffer.get(),
                     .offset = 0,
-                    .size = static_cast<uint32_t>(m_camera_buffer->GetDesc().element_size),
+                    .size = m_camera_buffer->GetDesc().element_size,
                     .binding = 0,
                     .array_element = 0,
                 },
@@ -323,8 +322,7 @@ namespace DnmGL {
             const ResourceDesc sprite_buffer_resources[] = {
                 {
                     .buffer = m_sprite_buffer.get(),
-                    .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().element_count * m_sprite_buffer->GetDesc().element_size),
+                    .element_count = m_sprite_buffer->GetDesc().element_count,
                     .binding = 0,
                     .array_element = 0,
                 },

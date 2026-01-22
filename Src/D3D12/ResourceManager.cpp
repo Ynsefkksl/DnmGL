@@ -134,8 +134,8 @@ namespace DnmGL::D3D12 {
                     .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
                     .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
                     .Buffer = D3D12_BUFFER_SRV{
-                        .FirstElement = 0,
-                        .NumElements = res.buffer->GetDesc().element_count,
+                        .FirstElement = res.first_element,
+                        .NumElements = res.element_count,
                         .StructureByteStride = res.buffer->GetDesc().element_size,
                         .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
                     }
@@ -165,8 +165,8 @@ namespace DnmGL::D3D12 {
                     .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
                     .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
                     .Buffer = D3D12_BUFFER_SRV{
-                        .FirstElement = 0,
-                        .NumElements = res.buffer->GetDesc().element_count,
+                        .FirstElement = res.first_element,
+                        .NumElements = res.element_count,
                         .StructureByteStride = res.buffer->GetDesc().element_size,
                         .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
                     }

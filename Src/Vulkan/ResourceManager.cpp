@@ -206,8 +206,8 @@ namespace DnmGL::Vulkan {
 
                     buffer_info = &buffer_infos.emplace_back(
                         typed_buffer->GetBuffer(),
-                        resource.offset,
-                        resource.size
+                        resource.first_element * typed_buffer->GetDesc().element_size,
+                        resource.element_count * typed_buffer->GetDesc().element_size
                     );
 
                     type = vk::DescriptorType::eStorageBuffer;
@@ -256,8 +256,8 @@ namespace DnmGL::Vulkan {
                     buffer_defer_updates.emplace_back(
                         typed_buffer->GetBuffer(),
                         vk::DescriptorType::eStorageBuffer,
-                        resource.offset,
-                        resource.size,
+                        resource.first_element * typed_buffer->GetDesc().element_size,
+                        resource.element_count * typed_buffer->GetDesc().element_size,
                         GetReadonlySet(),
                         resource.binding,       
                         resource.array_element
@@ -314,8 +314,8 @@ namespace DnmGL::Vulkan {
 
                     buffer_info = &buffer_infos.emplace_back(
                         typed_buffer->GetBuffer(),
-                        resource.offset,
-                        resource.size
+                        resource.first_element * typed_buffer->GetDesc().element_size,
+                        resource.element_count * typed_buffer->GetDesc().element_size
                     );
 
                     type = vk::DescriptorType::eStorageBuffer;
@@ -363,8 +363,8 @@ namespace DnmGL::Vulkan {
                     buffer_defer_updates.emplace_back(
                         typed_buffer->GetBuffer(),
                         vk::DescriptorType::eStorageBuffer,
-                        resource.offset,
-                        resource.size,
+                        resource.first_element * typed_buffer->GetDesc().element_size,
+                        resource.element_count * typed_buffer->GetDesc().element_size,
                         GetWritableSet(),
                         resource.binding,       
                         resource.array_element

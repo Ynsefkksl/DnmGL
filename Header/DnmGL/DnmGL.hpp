@@ -23,13 +23,10 @@
 #include <set>
 
 //TODO: add vulkan supported feature override
-//TODO: support VK_KHR_imageless_framebuffer
-//TODO: support VK_EXT_descriptor_buffer (just for learn, thats no advantage for this project)
 //TODO: add push constant support (or alternative something)
 //TODO: test offline rendering for both api's
 //TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡
-//TODO: fix resource manager function buffer offset, size, element problem
-//TODO: D3D12 alighment problem
+//TODO: D3D12 uniform and copy alighment problem
 //TODO: complate for d3d12 generate mipmap function
 //TODO: stencil is broken
 //TODO: add compressed image formats
@@ -530,8 +527,8 @@ namespace DnmGL {
 
     struct ResourceDesc {
         Buffer *buffer;
-        uint32_t offset;
-        uint32_t size;
+        uint32_t first_element;
+        uint32_t element_count;
         // or
         Image *image;
         ImageSubresource subresource;
@@ -1544,6 +1541,7 @@ namespace DnmGL {
             DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
             DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eUniform), 
                         "buffer don't has BufferUsageBits::eUniform; element index {}", i);
+            DnmGLAssert("condition", "fmt, ...");
         }
         
         ISetUniformResource(update_resource);   
