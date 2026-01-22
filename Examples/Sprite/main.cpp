@@ -141,17 +141,15 @@ int main(int argc, char** args) {
         return -1;
     }
 
-    try {
-        DnmGL::Context *context{};
-        if (use_d3d12) {
-            context = DnmGL::CreateD3D12Context();
-        }
-        else {
-            context = DnmGL::CreateVulkanContext();
-        }
+    DnmGL::Context *context{};
+    if (use_d3d12)
+        context = DnmGL::CreateD3D12Context();
+    else
+        context = DnmGL::CreateVulkanContext();
 
-        DnmGLAssert(context, "context is null!!!")
+    DnmGLAssert(context, "context is null!!!")
 
+    {
         context->SetCallbackFunc([] (std::string_view message, DnmGL::MessageType error, std::string_view source) {
             std::println("message: {}", message);
         });
@@ -317,9 +315,7 @@ int main(int argc, char** args) {
             }
         }
     }
-    catch (const std::exception& e) {
-        std::println("graphics error: {}", e.what());
-    }
+    delete context;
 
     glfwTerminate();
 }

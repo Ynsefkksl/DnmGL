@@ -29,12 +29,11 @@
 //TODO: test offline rendering for both api's
 //TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡
 //TODO: fix resource manager function buffer offset, size, element problem
-//TODO: fix Vulkan readonly image problem (readonly image type can be equivalent to sampled or storage)
 //TODO: D3D12 alighment problem
-//TODO: fix d3d12 sync
 //TODO: complate for d3d12 generate mipmap function
-//TODO: fix d3d12 transparency
 //TODO: stencil is broken
+//TODO: add compressed image formats
+
 namespace DnmGL {
     class Context;
     class CommandBuffer;
@@ -59,7 +58,6 @@ namespace DnmGL {
     #define DnmGLAssert(condition, fmt, ...) \
         DnmGL::DnmGLAssertFunc(std::source_location::current().function_name(), #condition, condition, fmt, __VA_ARGS__);
 
-    //TODO: add compressed formats
     //just stencil type not supported in d3d12
     //16d 8s type not supported in metal
     //rgb types not supported in metal
@@ -1017,10 +1015,10 @@ namespace DnmGL {
         template <typename T> void UploadData(DnmGL::Buffer *buffer, std::span<const T> data, uint32_t offset);
         //TODO: maybe has UploadImageData struct
         template <typename T> void UploadData(DnmGL::Image *image, 
-                                                        const ImageSubresource& subresource,
-                                                        std::span<const T> data, 
-                                                        Uint3 copy_extent, 
-                                                        Uint3 copy_offset);
+                                                const ImageSubresource& subresource,
+                                                std::span<const T> data, 
+                                                Uint3 copy_extent, 
+                                                Uint3 copy_offset);
     protected:
         virtual void IBegin() = 0;
         virtual void IEnd() = 0;

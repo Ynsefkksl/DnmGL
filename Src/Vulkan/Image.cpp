@@ -38,7 +38,6 @@ namespace DnmGL::Vulkan {
         }
 
         if (usage_flags.Has(ImageUsageBits::eReadonlyResource)) {
-            vk_flags |= vk::ImageUsageFlagBits::eStorage;
             vk_flags |= vk::ImageUsageFlagBits::eSampled;
         }
 

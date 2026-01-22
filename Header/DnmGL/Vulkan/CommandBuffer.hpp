@@ -134,7 +134,6 @@ namespace DnmGL::Vulkan {
     }
     
     inline void CommandBuffer::IEnd() {
-        ProcessPendingLayoutRestores();
         command_buffer.end();
     }
     

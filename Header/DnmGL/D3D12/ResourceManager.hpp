@@ -6,7 +6,7 @@ namespace DnmGL::D3D12 {
     class ResourceManager final : public DnmGL::ResourceManager {
     public:
         ResourceManager(DnmGL::D3D12::Context& context, std::span<const DnmGL::Shader *> shaders);
-        ~ResourceManager() = default;
+        ~ResourceManager() noexcept;
 
         void ISetReadonlyResource(std::span<const ResourceDesc> update_resource) override;
         void ISetWritableResource(std::span<const ResourceDesc> update_resource) override;
@@ -27,6 +27,7 @@ namespace DnmGL::D3D12 {
         [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetDescriptorHeapGPUHandle() const noexcept { return m_descriptor_heap->GetGPUDescriptorHandleForHeapStart(); }
         [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GetSamplerHeapGPUHandle() const noexcept { return m_sampler_heap->GetGPUDescriptorHandleForHeapStart(); }
     private:
+        //TODO: descriptor name is wrong
         ComPtr<ID3D12DescriptorHeap> m_descriptor_heap;
         ComPtr<ID3D12DescriptorHeap> m_sampler_heap;
         uint32_t m_readonly_resource_count{};
@@ -61,5 +62,15 @@ namespace DnmGL::D3D12 {
         CD3DX12_CPU_DESCRIPTOR_HANDLE handle(m_sampler_heap->GetCPUDescriptorHandleForHeapStart());
         handle.Offset(i + element, D3D12Context->GetSamplerDescriptorSize());
         return handle;
+    }
+
+    inline ResourceManager::~ResourceManager() noexcept {
+        D3D12Context->AddDeferDelete([
+            descriptor_heap = std::move(m_descriptor_heap),
+            sampler_heap = std::move(m_sampler_heap)
+        ] () mutable {
+            descriptor_heap.Reset();
+            sampler_heap.Reset();
+        });
     }
 }

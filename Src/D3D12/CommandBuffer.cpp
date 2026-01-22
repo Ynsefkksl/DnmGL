@@ -100,25 +100,29 @@ namespace DnmGL::D3D12 {
             if (need_src_barrier) {
                 barrier[0].Type = D3D12_RESOURCE_BARRIER_TYPE::D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
                 barrier[0].Transition = D3D12_RESOURCE_TRANSITION_BARRIER{
-                    .pResource = typed_buffer->GetResource(),
+                    .pResource = typed_image->GetResource(),
                     .Subresource = 0,
-                    .StateBefore = typed_buffer->GetState(),
-                    .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_DEST,
+                    .StateBefore = typed_image->GetState(),
+                    .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
                 };
                 barrier[0].Flags = {};
-                typed_buffer->m_state = D3D12_RESOURCE_STATE_COPY_DEST;
+                typed_image->m_state = D3D12_RESOURCE_STATE_COPY_DEST;
+
+                AddDeferStateTranslation(typed_image);
             }
             if (need_dst_barrier) {
                 const auto index = need_src_barrier;
                 barrier[index].Type = D3D12_RESOURCE_BARRIER_TYPE::D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
                 barrier[index].Transition = D3D12_RESOURCE_TRANSITION_BARRIER{
-                    .pResource = typed_image->GetResource(),
+                    .pResource = typed_buffer->GetResource(),
                     .Subresource = 0,
-                    .StateBefore = typed_image->GetState(),
-                    .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    .StateBefore = typed_buffer->GetState(),
+                    .StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE,
                 };
                 barrier[index].Flags = {};
-                typed_image->m_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+                typed_buffer->m_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+                AddDeferStateTranslation(typed_buffer);
             }
     
             m_command_list->ResourceBarrier(need_src_barrier + need_dst_barrier, barrier);
@@ -165,10 +169,12 @@ namespace DnmGL::D3D12 {
                     .pResource = typed_src_image->GetResource(),
                     .Subresource = 0,
                     .StateBefore = typed_src_image->GetState(),
-                    .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    .StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE,
                 };
                 barrier[0].Flags = {};
                 typed_src_image->m_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+                AddDeferStateTranslation(typed_src_image);
             }
             if (need_dst_barrier) {
                 const auto index = need_src_barrier;
@@ -177,10 +183,12 @@ namespace DnmGL::D3D12 {
                     .pResource = typed_dst_image->GetResource(),
                     .Subresource = 0,
                     .StateBefore = typed_dst_image->GetState(),
-                    .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_DEST,
+                    .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
                 };
                 barrier[index].Flags = {};
                 typed_dst_image->m_state = D3D12_RESOURCE_STATE_COPY_DEST;
+
+                AddDeferStateTranslation(typed_dst_image);
             }
     
             m_command_list->ResourceBarrier(need_src_barrier + need_dst_barrier, barrier);
@@ -238,10 +246,12 @@ namespace DnmGL::D3D12 {
                     .pResource = typed_buffer->GetResource(),
                     .Subresource = 0,
                     .StateBefore = typed_buffer->GetState(),
-                    .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    .StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE,
                 };
                 barrier[0].Flags = {};
                 typed_buffer->m_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+                AddDeferStateTranslation(typed_buffer);
             }
             if (need_dst_barrier) {
                 const auto index = need_src_barrier;
@@ -250,10 +260,12 @@ namespace DnmGL::D3D12 {
                     .pResource = typed_image->GetResource(),
                     .Subresource = 0,
                     .StateBefore = typed_image->GetState(),
-                    .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_DEST,
+                    .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
                 };
                 barrier[index].Flags = {};
                 typed_image->m_state = D3D12_RESOURCE_STATE_COPY_DEST;
+
+                AddDeferStateTranslation(typed_image);
             }
     
             m_command_list->ResourceBarrier(need_src_barrier + need_dst_barrier, barrier);
@@ -283,6 +295,8 @@ namespace DnmGL::D3D12 {
                 };
                 barrier[0].Flags = {};
                 typed_src_buffer->m_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+                AddDeferStateTranslation(typed_src_buffer);
             }
             if (need_dst_barrier) {
                 const auto index = need_src_barrier;
@@ -298,6 +312,8 @@ namespace DnmGL::D3D12 {
             }
     
             m_command_list->ResourceBarrier(need_src_barrier + need_dst_barrier, barrier);
+
+            AddDeferStateTranslation(typed_dst_buffer);
         }
 
         m_command_list->CopyBufferRegion(
@@ -369,34 +385,24 @@ namespace DnmGL::D3D12 {
             .back   = copy_extent.z
         };
 
-        if (typed_image->GetState() != D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_DEST) {
+        if (typed_image->GetState() != D3D12_RESOURCE_STATE_COPY_DEST) {
             D3D12_RESOURCE_BARRIER barrier{};
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE::D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             barrier.Transition = D3D12_RESOURCE_TRANSITION_BARRIER{
                 .pResource = typed_image->GetResource(),
                 .Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
                 .StateBefore = typed_image->GetState(),
-                .StateAfter = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_DEST,
+                .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
             };
             m_command_list->ResourceBarrier(1, &barrier);
-            typed_image->m_state = D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_COPY_DEST;
+            typed_image->m_state = D3D12_RESOURCE_STATE_COPY_DEST;
+
+            AddDeferStateTranslation(typed_image);
         }
 
         m_command_list->CopyTextureRegion(
             &dst, 0, 0, 0, 
             &src, &box);
-
-        //temp
-        D3D12_RESOURCE_BARRIER barrier{};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE::D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition = D3D12_RESOURCE_TRANSITION_BARRIER{
-            .pResource = typed_image->GetResource(),
-            .Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-            .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
-            .StateAfter = typed_image->GetIdealState(),
-        };
-        m_command_list->ResourceBarrier(1, &barrier);
-        typed_image->m_state = typed_image->GetIdealState();
     }
 
     void CommandBuffer::IUploadData(DnmGL::Buffer *buffer, const void* data, uint32_t size, uint32_t offset) {
@@ -468,6 +474,9 @@ namespace DnmGL::D3D12 {
                 }
             };
             m_command_list->ResourceBarrier(1, &resource_barrier);
+        }
+        else {
+            DeferStateTranslation();
         }
     }
 
@@ -563,6 +572,50 @@ namespace DnmGL::D3D12 {
             D3D12_RENDER_PASS_DEPTH_STENCIL_DESC &depth_stencil_desc,
             const BeginRenderingDesc &desc,
             D3D12::Framebuffer &framebuffer) {
+        {
+            std::vector<D3D12_RESOURCE_BARRIER> resource_barriers{};
+            resource_barriers.reserve(framebuffer.ColorAttachmentCount() + framebuffer.HasDepthAttachment());
+
+            for (auto *image : framebuffer.GetUserColorAttachments()) {
+                if (image->GetState() == D3D12_RESOURCE_STATE_RENDER_TARGET) continue;
+                resource_barriers.push_back(
+                    {
+                        .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                        .Flags = {},
+                        .Transition = {
+                            image->GetResource(),
+                            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                            image->GetState(),
+                            D3D12_RESOURCE_STATE_RENDER_TARGET
+                        }
+                    }
+                );
+                image->m_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                AddDeferStateTranslation(image);
+            }
+
+            if (auto *image = framebuffer.GetUserDepthAttachment(); 
+                image && image->GetState() == D3D12_RESOURCE_STATE_DEPTH_WRITE) {
+                resource_barriers.push_back(
+                    {
+                        .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                        .Flags = {},
+                        .Transition = {
+                            image->GetResource(),
+                            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                            image->GetState(),
+                            D3D12_RESOURCE_STATE_DEPTH_WRITE
+                        }
+                    }
+                );
+                image->m_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                AddDeferStateTranslation(image);
+            }
+
+            if (resource_barriers.size())
+                m_command_list->ResourceBarrier(resource_barriers.size(), resource_barriers.data());
+        }
+
         CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(framebuffer.GetRtvHeap()->GetCPUDescriptorHandleForHeapStart());
         
         for (const auto i : Counter(framebuffer.ColorAttachmentCount())) {
@@ -641,5 +694,42 @@ namespace DnmGL::D3D12 {
                         D3D12_RENDER_PASS_ENDING_ACCESS_RESOLVE_PARAMETERS{}
                 };
         }
+    }
+
+    void CommandBuffer::DeferStateTranslation() {
+        std::vector<D3D12_RESOURCE_BARRIER> resource_barriers{};
+        resource_barriers.reserve(m_defer_state_translation_buffer.size() + m_defer_state_translation_image.size());
+        for (auto *buffer : m_defer_state_translation_buffer) {
+            resource_barriers.push_back(
+                {
+                    D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    D3D12_RESOURCE_BARRIER_FLAGS{},
+                    D3D12_RESOURCE_TRANSITION_BARRIER{
+                        buffer->GetResource(),
+                        0,
+                        buffer->GetState(),
+                        buffer->GetIdealState()
+                    }
+                }
+            );
+            buffer->m_state = buffer->GetState();
+        }
+        for (auto *image : m_defer_state_translation_image) {
+            resource_barriers.push_back(
+                {
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = {},
+                    .Transition = {
+                        image->GetResource(),
+                        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+                        image->GetState(),
+                        image->GetIdealState(),  
+                    }
+                }
+            );
+            image->m_state = image->GetState();
+        }
+
+        m_command_list->ResourceBarrier(resource_barriers.size(), resource_barriers.data());           
     }
 }

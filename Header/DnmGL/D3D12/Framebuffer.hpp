@@ -7,7 +7,7 @@ namespace DnmGL::D3D12 {
     class Framebuffer final : public DnmGL::Framebuffer {
     public:
         Framebuffer(D3D12::Context& context, const DnmGL::FramebufferDesc& desc) noexcept;
-        ~Framebuffer() noexcept {}
+        ~Framebuffer() noexcept;
 
         void ISetAttachments(
             std::span<const DnmGL::RenderAttachment> attachments, 
@@ -40,4 +40,14 @@ namespace DnmGL::D3D12 {
         //for utility
         std::unique_ptr<D3D12::Image> m_depth_buffer{};
     };
+
+    inline Framebuffer::~Framebuffer() noexcept {
+        D3D12Context->AddDeferDelete([
+            rtv_heap = std::move(m_rtv_heap),
+            dsv_heap = std::move(m_dsv_heap)
+        ] () mutable {
+            rtv_heap.Reset();
+            dsv_heap.Reset();
+        });
+    }
 }

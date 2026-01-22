@@ -43,6 +43,7 @@ UniformBuffer pc : register(b0) {
     float4 camera_pos;
 }
 
+[[ForceInline]]
 constexpr float2 FastPosCalc(float2 vert_pos, float2 pos, float2 scale, float angle) {
     const float2 rotated_pos = float2(
         vert_pos.x * cos(angle) - vert_pos.y * sin(angle),
@@ -92,9 +93,9 @@ VertexOut VertMain(VertexIn in) {
 */
 
 ReadonlyImage atlas_texture : register(t1);
-Sampler sampler : register(s0);
+Sampler atlas_sampler : register(s0);
 
 [[shader("fragment")]]
 float4 FragMain(VertexOut in) : SV_Target {
-    return lerp(atlas_texture.Sample(sampler, in.uv), in.color, in.color_factor);
+    return lerp(atlas_texture.Sample(atlas_sampler, in.uv), in.color, in.color_factor);
 }

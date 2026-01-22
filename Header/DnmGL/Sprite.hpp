@@ -232,7 +232,7 @@ namespace DnmGL {
 
             GraphicsPipelineDesc pipeline_desc{};
             pipeline_desc.color_attachment_formats =  { ImageFormat::eRGBA8Norm };
-            pipeline_desc.depth_stencil_format = ImageFormat::eD16Norm;//GetContext()->GetSwapchainSettings().depth_buffer_format;
+            pipeline_desc.depth_stencil_format = GetContext()->GetSwapchainSettings().depth_buffer_format;
             pipeline_desc.vertex_entry_point = "VertMain"; 
             pipeline_desc.vertex_shader = m_shader.get(); 
             pipeline_desc.fragment_entry_point = "FragMain"; 

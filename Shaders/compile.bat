@@ -22,11 +22,11 @@ if /i %compile_vulkan%==1 (
 
 for %%f in (*.slang) do (
     if /i %compile_d3d12%==1 (
-        slangc %%f -o D3D12\%%~nf.dxil -target dxil -profile sm_6_3
+        slangc %%f -o D3D12\%%~nf.dxil -target dxil -profile sm_6_3 -O3 -no-mangle -fvk-use-gl-layout
     )
     
     if /i %compile_vulkan%==1 (       
-        slangc %%f -o Vulkan\%%~nf.spv -target spirv -profile spirv_1_3 -O3 -fvk-t-shift 0 0 -fvk-u-shift 256 0 -fvk-b-shift 512 0 -fvk-s-shift 768 0
+        slangc %%f -o Vulkan\%%~nf.spv -target spirv -profile spirv_1_3 -O3 -fvk-t-shift 0 0 -fvk-u-shift 256 0 -fvk-b-shift 512 0 -fvk-s-shift 768 0 -no-mangle -fvk-use-gl-layout
     )
 )
 

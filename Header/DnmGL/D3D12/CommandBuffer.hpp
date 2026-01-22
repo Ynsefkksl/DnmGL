@@ -17,10 +17,10 @@ namespace DnmGL::D3D12 {
         void IEndRendering() override;
 
         void IBeginCopyPass() override {}
-        void IEndCopyPass() override {}
+        void IEndCopyPass() override { DeferStateTranslation(); }
 
         void IBeginComputePass() override {}
-        void IEndComputePass() override {}
+        void IEndComputePass() override { DeferStateTranslation(); }
 
         void IUploadData(DnmGL::Image *image, 
                         const ImageSubresource& subresource, 
@@ -48,6 +48,11 @@ namespace DnmGL::D3D12 {
     
         void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) override;
         void ISetScissor(Uint2 extent, Uint2 offset) override;
+
+        void AddDeferStateTranslation(D3D12::Buffer *buffer);
+        void RemoveDeferStateTranslation(D3D12::Buffer *buffer);
+        void AddDeferStateTranslation(D3D12::Image *image);
+        void RemoveDeferStateTranslation(D3D12::Image *image);
     private:
         void FillBeginRenderpassForPresenting(
             std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> &render_target_descs, 
@@ -60,8 +65,12 @@ namespace DnmGL::D3D12 {
             const BeginRenderingDesc &desc,
             D3D12::Framebuffer &framebuffer);
 
+        void DeferStateTranslation();
 
         ComPtr<ID3D12GraphicsCommandList10> m_command_list;
+
+        std::set<D3D12::Buffer *> m_defer_state_translation_buffer;
+        std::set<D3D12::Image *> m_defer_state_translation_image;
 
         friend D3D12::Context;
     };
@@ -106,5 +115,21 @@ namespace DnmGL::D3D12 {
             static_cast<LONG>(extent.y),
         };
         m_command_list->RSSetScissorRects(1, &scissor);
+    }
+    
+    inline void CommandBuffer::AddDeferStateTranslation(D3D12::Buffer *buffer) {
+        m_defer_state_translation_buffer.emplace(buffer);
+    }
+
+    inline void CommandBuffer::RemoveDeferStateTranslation(D3D12::Buffer *buffer) {
+        m_defer_state_translation_buffer.erase(buffer);
+    }
+
+    inline void CommandBuffer::AddDeferStateTranslation(D3D12::Image *image) {
+        m_defer_state_translation_image.emplace(image);
+    }
+
+    inline void CommandBuffer::RemoveDeferStateTranslation(D3D12::Image *image) {
+        m_defer_state_translation_image.erase   (image);
     }
 }

@@ -25,11 +25,10 @@ for file in *.slang; do
     filename="${file%.slang}"
     
     if [ $compile_d3d12 -eq 1 ]; then
-        slangc "$file" -o "D3D12/${filename}.dxil" -target dxil -profile sm_6_3
+        slangc "$file" -o "D3D12/${filename}.dxil" -target dxil -profile sm_6_3 -O3 -no-mangle -fvk-use-gl-layout
     fi
     
     if [ $compile_vulkan -eq 1 ]; then
-        slangc "$file" -o "Vulkan/${filename}.spv" -target spirv -profile spirv_1_3 -O3 \
-            -fvk-t-shift 0 0 -fvk-u-shift 256 0 -fvk-b-shift 512 0 -fvk-s-shift 768 0
+        slangc "$file" -o "Vulkan/${filename}.spv" -target spirv -profile spirv_1_3 -O3 -fvk-t-shift 0 0 -fvk-u-shift 256 0 -fvk-b-shift 512 0 -fvk-s-shift 768 0 -no-mangle -fvk-use-gl-layout 
     fi
 done
