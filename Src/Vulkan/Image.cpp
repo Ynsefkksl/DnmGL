@@ -3,7 +3,7 @@
 #include "DnmGL/Vulkan/ToVkFormat.hpp"
 
 namespace DnmGL::Vulkan {
-    static vk::ImageViewType GetVkImageViewType(ImageSubresourceType type) {
+    static constexpr vk::ImageViewType GetVkImageViewType(ImageSubresourceType type) noexcept {
         switch (type) {
             case ImageSubresourceType::e1D: return vk::ImageViewType::e1D;
             case ImageSubresourceType::e2D: return vk::ImageViewType::e2D;
@@ -13,7 +13,7 @@ namespace DnmGL::Vulkan {
         }
     }
 
-    static vk::ImageType GetVkImageType(ImageType type) {
+    static constexpr vk::ImageType GetVkImageType(ImageType type) {
         switch (type) {
             case ImageType::e1D: return vk::ImageType::e1D;
             case ImageType::e2D: return vk::ImageType::e2D;
@@ -21,31 +21,40 @@ namespace DnmGL::Vulkan {
         }
     }
 
-    static vk::ImageUsageFlags GetVkUsageFlags(ImageUsageFlags usage_flags) {
+    static constexpr vk::ImageUsageFlags GetVkUsageFlags(ImageUsageFlags usage_flags) noexcept {
         vk::ImageUsageFlags vk_flags{};
+        if (usage_flags.Has(ImageUsageBits::eTransientAttachment)) {
+            vk_flags |= vk::ImageUsageFlagBits::eTransientAttachment;
 
+            if (usage_flags.Has(ImageUsageBits::eColorAttachment))
+                vk_flags |= vk::ImageUsageFlagBits::eColorAttachment;
+
+            if (usage_flags.Has(ImageUsageBits::eDepthStencilAttachment))
+                vk_flags |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
+            
+            return vk_flags;
+        }
+
+        vk_flags |= vk::ImageUsageFlagBits::eTransferDst;
+
+        if (usage_flags.Has(ImageUsageBits::eReadonlyResource))
+            vk_flags |= vk::ImageUsageFlagBits::eSampled;
+        
         if (usage_flags.Has(ImageUsageBits::eColorAttachment)) {
             vk_flags |= vk::ImageUsageFlagBits::eColorAttachment;
+            vk_flags |= vk::ImageUsageFlagBits::eTransferSrc;
         }
 
         if (usage_flags.Has(ImageUsageBits::eDepthStencilAttachment)) {
             vk_flags |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
-        }
-
-        if (usage_flags.Has(ImageUsageBits::eTransientAttachment)) {
-            vk_flags |= vk::ImageUsageFlagBits::eTransientAttachment;
-            return vk_flags;
-        }
-
-        if (usage_flags.Has(ImageUsageBits::eReadonlyResource)) {
-            vk_flags |= vk::ImageUsageFlagBits::eSampled;
+            vk_flags |= vk::ImageUsageFlagBits::eTransferSrc;
         }
 
         if (usage_flags.Has(ImageUsageBits::eWritebleResource)) {
             vk_flags |= vk::ImageUsageFlagBits::eStorage;
+            vk_flags |= vk::ImageUsageFlagBits::eTransferSrc;
         }
 
-        vk_flags |= vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc;
         return vk_flags;
     }
 
@@ -100,29 +109,28 @@ namespace DnmGL::Vulkan {
         }
 
         auto* command_buffer = VulkanContext->GetCommandBufferIfRecording();
-        if (command_buffer) {
+        if (command_buffer && command_buffer->GetPassType() != CommandBufferPassType::eTransfer) {
             const ImageBarrier transfer_layout_desc{
                 .image = this,
-                .new_image_layout = Image::GetIdealImageLayout(),
+                .new_image_layout = GetIdealImageLayout(),
                 .src_pipeline_stages = vk::PipelineStageFlagBits::eTopOfPipe,
-                .dst_pipeline_stages = vk::PipelineStageFlagBits::eBottomOfPipe,
+                .dst_pipeline_stages = vk::PipelineStageFlagBits::eTransfer,
                 .src_access = {},
-                .dst_access = {},
+                .dst_access = vk::AccessFlagBits::eTransferWrite,
             };
+
             command_buffer->TransferImageLayout({
                 &transfer_layout_desc,
                 1
             });
         }
-        else {
-            VulkanContext->GetCommandBuffer()->DeferLayoutRestore(this);
-        }
+        VulkanContext->GetCommandBuffer()->AddDeferLayoutTranslation(this);
     }
 
     Image::~Image() {
         const auto image = m_image;
         const auto image_views = std::move(m_image_views);
-        VulkanContext->GetCommandBuffer()->CancelLayoutRestore(this);
+        VulkanContext->GetCommandBuffer()->RemoveDeferLayoutTranslation(this);
 
         auto* allocation = m_allocation;
         VulkanContext->DeleteObject(

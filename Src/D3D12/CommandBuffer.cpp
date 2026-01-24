@@ -348,7 +348,6 @@ namespace DnmGL::D3D12 {
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
 
         const auto res_desc = dst_resource->GetDesc();
-        uint64_t staging_buffer_size;
 
         D3D12Context->GetDevice()->GetCopyableFootprints(
             &res_desc, 
@@ -358,10 +357,10 @@ namespace DnmGL::D3D12 {
             &footprint,
             nullptr,
             nullptr,
-            &staging_buffer_size);
+            nullptr);
             
         D3D12::Buffer staging_buffer(*D3D12Context, {
-            .element_size = static_cast<uint32_t>(staging_buffer_size),
+            .element_size = copy_size,
             .element_count = 1,
             .memory_host_access = MemoryHostAccess::eWrite,
             .memory_type = MemoryType::eAuto,
@@ -731,5 +730,9 @@ namespace DnmGL::D3D12 {
         }
 
         m_command_list->ResourceBarrier(resource_barriers.size(), resource_barriers.data());           
+    }
+
+    void CommandBuffer::IGenerateMipmaps(DnmGL::Image *image) {
+        DnmGLAssert(false, "this func is not complate");
     }
 }

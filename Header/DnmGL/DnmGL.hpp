@@ -279,6 +279,13 @@ namespace DnmGL {
         eWrite
     };
 
+    enum class CommandBufferPassType {
+        eNone,
+        eTransfer,
+        eCompute,
+        eRendering,
+    };
+
     //same with vulkan
     enum class SamplerMipmapMode {
         eNearest,
@@ -849,9 +856,8 @@ namespace DnmGL {
     class Buffer : public RHIObject {
     public:
         using Ptr = std::unique_ptr<DnmGL::Buffer>;
-        constexpr Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept
-            : RHIObject(context),
-            m_desc(desc) {}
+        constexpr Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept;
+            
         virtual ~Buffer() = default;
 
         template <typename T = uint8_t>
@@ -973,6 +979,7 @@ namespace DnmGL {
     };
 
     class CommandBuffer : public RHIObject {
+        CommandBufferPassType active_pass{};
     public:
         using Ptr = std::unique_ptr<DnmGL::CommandBuffer>;
         constexpr CommandBuffer(Context& context) noexcept : RHIObject(context) {}
@@ -1016,6 +1023,8 @@ namespace DnmGL {
                                                 std::span<const T> data, 
                                                 Uint3 copy_extent, 
                                                 Uint3 copy_offset);
+
+        constexpr auto GetPassType() const noexcept { return active_pass; }
     protected:
         virtual void IBegin() = 0;
         virtual void IEnd() = 0;
@@ -1060,13 +1069,6 @@ namespace DnmGL {
         ComputePipeline *active_compute_pipeline{};
         GraphicsPipeline *active_graphics_pipeline{};
         Framebuffer *active_framebuffer{};
-
-        enum class PassType {
-            eNone,
-            eTransfer,
-            eCompute,
-            eRendering,
-        } active_pass{};
     };
 
     inline void CommandBuffer::Begin() {
@@ -1074,12 +1076,12 @@ namespace DnmGL {
     }
 
     inline void CommandBuffer::End() {
-        if (active_pass != PassType::eNone) {
+        if (active_pass != CommandBufferPassType::eNone) {
             switch (active_pass) {
-                case PassType::eNone: std::unreachable(); break;
-                case PassType::eTransfer: EndCopyPass(); break;
-                case PassType::eCompute: EndComputePass(); break;
-                case PassType::eRendering: EndRendering(); break;
+                case CommandBufferPassType::eNone: std::unreachable(); break;
+                case CommandBufferPassType::eTransfer: EndCopyPass(); break;
+                case CommandBufferPassType::eCompute: EndComputePass(); break;
+                case CommandBufferPassType::eRendering: EndRendering(); break;
             }
         }
 
@@ -1087,7 +1089,7 @@ namespace DnmGL {
     }
     
     inline void CommandBuffer::BeginRendering(const BeginRenderingDesc& desc) {
-        DnmGLAssert(active_pass == PassType::eNone, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eNone, 
         "BeginRendering cannot be call in some pass")
 
         IsValidBeginRenderingDesc(desc);
@@ -1095,76 +1097,76 @@ namespace DnmGL {
         active_graphics_pipeline = desc.pipeline;
         active_framebuffer = desc.framebuffer;
         IBeginRendering(desc);
-        active_pass = PassType::eRendering;
+        active_pass = CommandBufferPassType::eRendering;
     }
 
     inline void CommandBuffer::EndRendering() {
-        DnmGLAssert(active_pass == PassType::eRendering, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, 
         "BeginRendering must be called before EndRendering")
 
         active_graphics_pipeline = nullptr;
         active_framebuffer = nullptr;
         IEndRendering();
-        active_pass = PassType::eNone;
+        active_pass = CommandBufferPassType::eNone;
     }
 
     inline void CommandBuffer::BeginComputePass() {
-        DnmGLAssert(active_pass == PassType::eNone, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eNone, 
         "BeginCompute cannot be call in some pass")
 
         active_compute_pipeline = nullptr;
         IBeginComputePass();
-        active_pass = PassType::eCompute;
+        active_pass = CommandBufferPassType::eCompute;
     }
 
     inline void CommandBuffer::EndComputePass() {
-        DnmGLAssert(active_pass == PassType::eCompute, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, 
         "BeginCompute must be called before EndCompute")
 
         active_compute_pipeline = nullptr;
         IEndComputePass();
-        active_pass = PassType::eNone;
+        active_pass = CommandBufferPassType::eNone;
     }
 
     inline void CommandBuffer::BeginCopyPass() {
-        DnmGLAssert(active_pass == PassType::eNone, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eNone, 
         "BeginCopyPass cannot be call in some pass")
 
         IBeginCopyPass();
-        active_pass = PassType::eTransfer;
+        active_pass = CommandBufferPassType::eTransfer;
     }
 
     inline void CommandBuffer::EndCopyPass() {
-        DnmGLAssert(active_pass == PassType::eTransfer, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, 
         "BeginCopyPass must be called before EndCopyPass")
 
         IEndCopyPass();
-        active_pass = PassType::eNone;
+        active_pass = CommandBufferPassType::eNone;
     }
 
     inline void CommandBuffer::BindPipeline(const DnmGL::ComputePipeline *pipeline) {
-        DnmGLAssert(active_pass == PassType::eCompute, "this function must be call in compute pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, "this function must be call in compute pass")
         DnmGLAssert(pipeline, "pipeline cannot be null")
 
         IBindPipeline(pipeline);
     }
 
     inline void CommandBuffer::Draw(uint32_t vertex_count, uint32_t instance_count) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         if (vertex_count || instance_count)
             IDraw(vertex_count, instance_count);
     }
 
     inline void CommandBuffer::DrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         if (index_count || instance_count)
             IDrawIndexed(index_count, instance_count, vertex_offset);
     }
 
     inline void CommandBuffer::Dispatch(uint32_t x, uint32_t y, uint32_t z) {
-        DnmGLAssert(active_pass == PassType::eCompute, "this function must be call in compute pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, "this function must be call in compute pass")
         DnmGLAssert(active_compute_pipeline, "there is no binded compute pipeline")
 
         if (x && y && z)
@@ -1173,21 +1175,21 @@ namespace DnmGL {
     
     inline void CommandBuffer::SetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         ISetViewport(extent, offset, min_depth, max_depth);
     }
 
     inline void CommandBuffer::SetScissor(Uint2 extent, Uint2 offset) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         ISetScissor(extent, offset);
     }
 
     inline void CommandBuffer::CopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.src_image, "src_image cannot be null")
         DnmGLAssert(desc.dst_buffer, "dst_buffer cannot be null")
 
@@ -1196,7 +1198,7 @@ namespace DnmGL {
 
     inline void CommandBuffer::CopyImageToImage(const DnmGL::ImageToImageCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.src_image, "src_image cannot be null")
         DnmGLAssert(desc.dst_image, "dst_image cannot be null")
 
@@ -1205,7 +1207,7 @@ namespace DnmGL {
 
     inline void CommandBuffer::CopyBufferToImage(const DnmGL::BufferToImageCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.dst_image, "dst_image cannot be null")
         DnmGLAssert(desc.src_buffer, "src_buffer cannot be null")
 
@@ -1214,7 +1216,7 @@ namespace DnmGL {
 
     inline void CommandBuffer::CopyBufferToBuffer(const DnmGL::BufferToBufferCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.src_buffer, "src_buffer cannot be null")
         DnmGLAssert(desc.dst_buffer, "dst_buffer cannot be null")
 
@@ -1222,7 +1224,7 @@ namespace DnmGL {
     }
 
     inline void CommandBuffer::GenerateMipmaps(DnmGL::Image *image) {
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(image, "image cannot be null")
         if (image->GetDesc().mipmap_levels == 1) return;
 
@@ -1230,14 +1232,14 @@ namespace DnmGL {
     }
 
     inline void CommandBuffer::BindVertexBuffer(const DnmGL::Buffer *buffer, uint64_t offset) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
         DnmGLAssert(buffer, "buffer cannot be null")
         
         IBindVertexBuffer(buffer, offset);
     }
 
     inline void CommandBuffer::BindIndexBuffer(const DnmGL::Buffer *buffer, uint64_t offset, DnmGL::IndexType index_type) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
         DnmGLAssert(buffer, "buffer cannot be null")
 
         IBindIndexBuffer(buffer, offset, index_type);
@@ -1245,7 +1247,7 @@ namespace DnmGL {
     
     template <typename T> 
     inline void CommandBuffer::UploadData(DnmGL::Buffer *buffer, std::span<const T> data, uint32_t offset) {
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(buffer, "buffer cannot be null")
         if (data.empty()) return;
 
@@ -1258,7 +1260,7 @@ namespace DnmGL {
                                             std::span<const T> data, 
                                             Uint3 copy_extent, 
                                             Uint3 copy_offset) {
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(image, "image cannot be null")
         if (data.empty()) return;
 
@@ -1317,6 +1319,13 @@ namespace DnmGL {
             "MemoryHostAccess::eNone, must be MemoryHostAccess::eWrite or MemoryHostAccess::eReadWrite");
 
         return reinterpret_cast<T *>(m_mapped_ptr);
+    }
+
+    constexpr Buffer::Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept : RHIObject(context), m_desc(desc) {
+        if (m_desc.usage_flags.Has(BufferUsageBits::eUniform)) m_desc.element_size = (m_desc.element_size + 255) & ~255;
+        if (m_desc.usage_flags.Has(BufferUsageBits::eReadonlyResource) 
+        || m_desc.usage_flags.Has(BufferUsageBits::eWritebleResource)) m_desc.element_size = (m_desc.element_size + 64) & ~64;
+        if (m_desc.element_size < 4) m_desc.element_size = 4;
     }
 
     constexpr GraphicsPipeline::GraphicsPipeline(Context& ctx, const GraphicsPipelineDesc& desc) noexcept

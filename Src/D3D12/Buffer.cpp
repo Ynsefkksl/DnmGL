@@ -14,7 +14,6 @@ namespace DnmGL::D3D12 {
 
     Buffer::Buffer(D3D12::Context& ctx, const DnmGL::BufferDesc& desc)
     : DnmGL::Buffer(ctx, desc) {
-        if (m_desc.usage_flags.Has(BufferUsageBits::eUniform)) m_desc.element_size = (m_desc.element_size + 255) & ~255;
         D3D12_RESOURCE_DESC resourceDesc = {};
         resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
         resourceDesc.Alignment = 0;

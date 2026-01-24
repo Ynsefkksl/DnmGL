@@ -20,7 +20,7 @@ namespace DnmGL::Vulkan {
 
         BarrierForPipeline(typed_pipeline->GetPipelineStageFlags(), typed_pipeline->GetAccessFlags());
 
-        ProcessPendingLayoutRestores();
+        DeferLayoutTranslation();
 
         command_buffer.bindDescriptorSets(
                         vk::PipelineBindPoint::eCompute, 
@@ -64,7 +64,7 @@ namespace DnmGL::Vulkan {
             image_barrier.dst_pipeline_stages = vk::PipelineStageFlagBits::eTransfer;
             image_barrier.src_pipeline_stages = typed_src_image->prev_pipeline_stage;
 
-            DeferLayoutRestore(typed_src_image);
+            AddDeferLayoutTranslation(typed_src_image);
         }
 
         Barrier(std::span(&buffer_barrier, 1), std::span(&image_barrier, image_barrier_needed));
@@ -123,10 +123,10 @@ namespace DnmGL::Vulkan {
                 image_barrier[1].dst_pipeline_stages = vk::PipelineStageFlagBits::eTransfer;
                 image_barrier[1].src_pipeline_stages = typed_src_image->prev_pipeline_stage;
     
-                DeferLayoutRestore(typed_src_image);
+                AddDeferLayoutTranslation(typed_src_image);
             }
     
-            DeferLayoutRestore(typed_dst_image);
+            AddDeferLayoutTranslation(typed_dst_image);
     
             Barrier({}, std::span(image_barrier, src_image_barrier_needed + 1));
         }
@@ -238,7 +238,7 @@ namespace DnmGL::Vulkan {
                 buffer_barrier->src_pipeline_stages = typed_src_buffer->prev_pipeline_stage;
             }
     
-            DeferLayoutRestore(typed_dst_image);
+            AddDeferLayoutTranslation(typed_dst_image);
 
             Barrier(std::span(buffer_barrier, buffer_barrier_needed), image_barrier);
         }
@@ -482,8 +482,12 @@ namespace DnmGL::Vulkan {
         }
 
         //old image layout
+        
+        vk::ImageLayout new_layout = typed_image->GetIdealImageLayout();
+        if (new_layout == vk::ImageLayout::eTransferSrcOptimal) {
+        
+        }
         typed_image->m_image_layout = vk::ImageLayout::eTransferSrcOptimal;
-
         layout_transfer_barrier = {
             typed_image,
             typed_image->GetIdealImageLayout(),
@@ -593,7 +597,7 @@ namespace DnmGL::Vulkan {
         else
             command_buffer.endRenderPass();
 
-        ProcessPendingLayoutRestores();
+        DeferLayoutTranslation();
 
         if (active_framebuffer) {
             auto* typed_pipeline = static_cast<Vulkan::FramebufferDefaultVk *>(active_framebuffer);
@@ -630,7 +634,7 @@ namespace DnmGL::Vulkan {
     }
 
     // TODO: fix this
-    void CommandBuffer::ProcessPendingLayoutRestores() {
+    void CommandBuffer::DeferLayoutTranslation() {
         if (!m_pending_layout_restore_images.size()) {
             return;
         }
@@ -792,7 +796,7 @@ namespace DnmGL::Vulkan {
         command_buffer.pipelineBarrier2KHR(dependency_desc, VulkanContext->GetDispatcher());
     }
     
-    void CommandBuffer::DeferLayoutRestore(Vulkan::Image *image) {
+    void CommandBuffer::AddDeferLayoutTranslation(Vulkan::Image *image) {
         // Color/Depth attachments are handled in BeginRendering
         if (const auto usage_flags = image->GetDesc().usage_flags;
             !(usage_flags.Has(ImageUsageBits::eReadonlyResource) || usage_flags.Has(ImageUsageBits::eWritebleResource))) return;

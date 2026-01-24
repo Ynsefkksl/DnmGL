@@ -38,7 +38,7 @@ namespace DnmGL::D3D12 {
 
         void IBindPipeline(const DnmGL::ComputePipeline *pipeline) override;
 
-        void IGenerateMipmaps(DnmGL::Image *image) override { DnmGLAssert(false, "this func is not complate") }
+        void IGenerateMipmaps(DnmGL::Image *image) override;
     
         void IBindVertexBuffer(const DnmGL::Buffer *buffer, uint64_t offset) override;
         void IBindIndexBuffer(const DnmGL::Buffer *buffer, uint64_t offset, DnmGL::IndexType index_type) override;
