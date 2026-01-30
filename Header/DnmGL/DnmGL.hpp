@@ -43,6 +43,7 @@ namespace DnmGL {
     class GraphicsPipeline;
     class ResourceManager;
     class Framebuffer;
+    class ShaderCompiler;
 
     template <class... Types> 
     constexpr void DnmGLAssertFunc(std::string_view func_name, std::string_view condition_str, bool condition, const std::format_string<Types...> fmt, Types&&... args) {
@@ -553,6 +554,43 @@ namespace DnmGL {
         uint32_t array_element;
     };
     
+    enum class ShaderType : uint8_t {
+        eGraphicsShader,
+        eComputeShader
+    };
+
+    //TODO: add resource creation desc
+    struct Resource {
+        ResourceType type;
+        uint32_t spirv_index;
+        uint32_t dxil_index;
+        uint32_t metal_index;
+        uint32_t resource_count;
+        std::string name;
+    };
+
+    //TODO: add func input output
+    struct EntryPoint {
+        ShaderStageBits shader_stage;
+        std::string name;
+    };
+
+    struct ShaderReflection {
+        ShaderType shader_type;
+        std::vector<Resource> resources;
+        std::vector<EntryPoint> entry_points;
+    };
+
+    //TODO: add pipeline properties
+    struct ShaderData {
+        ShaderReflection reflection;
+
+        std::vector<char> spirv_code;
+        std::vector<char> metal_code;
+        //each entry point has own code in dxil
+        std::unordered_map<std::string, std::vector<char>> dxil_codes;
+    };
+
     struct GraphicsPipelineDesc {
         std::string vertex_entry_point;
         Shader *vertex_shader;
@@ -583,6 +621,40 @@ namespace DnmGL {
         // stencil_store_op, stencil_load_op
         bool stencil_test : 1;
         bool color_blend : 1;
+    };
+
+    struct VertexBinding {
+        VertexFormat vertex_format;
+        uint32_t offset;
+    };
+
+    struct ResterizerDesc {
+        std::span<const ImageFormat> color_attachment_formats;
+        PolygonMode polygone_mode;
+        CullMode cull_mode;
+        FrontFace front_face;
+        SampleCount msaa = SampleCount::e1;
+        bool color_blend : 1;
+    };
+
+    struct InputAssemblyDesc {
+        std::span<const VertexBinding> vertex_binding_formats;
+        PrimitiveTopology topology;
+    };
+
+    struct DepthStencilDesc {
+        ImageFormat depth_stencil_format;
+        CompareOp depth_test_compare_op;
+        bool depth_test : 1;
+        bool depth_write : 1;
+        bool stencil_test : 1;
+    };
+
+    struct NewGraphicsPipelineDesc {
+        std::string shader_name;
+        ResterizerDesc *resterizer_desc;
+        InputAssemblyDesc *input_assembly_desc;
+        DepthStencilDesc *depth_stencil_desc;
     };
 
     struct ComputePipelineDesc {;
@@ -760,10 +832,13 @@ namespace DnmGL {
     extern "C" DNMGL_API DnmGL::Context *CreateD3D12Context();
     extern "C" DNMGL_API DnmGL::Context *CreateMetalContext();
 
-    class Context {
+    class DNMGL_API Context {
+        void CreateShaderCompiler();
+        void DestroyShaderCompiler();
     public:
-        virtual ~Context() = default;
-        
+        Context() { CreateShaderCompiler(); }
+        virtual ~Context() { DestroyShaderCompiler(); };
+
         [[nodiscard]] virtual GraphicsBackend GetGraphicsBackend() const noexcept = 0;
 
         void Init(const ContextDesc &);
@@ -785,6 +860,16 @@ namespace DnmGL {
         [[nodiscard]] virtual std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept = 0;
         [[nodiscard]] virtual ContextState GetContextState() noexcept = 0;
         
+        //compile shader and add cache if shader exists override shader data in cache
+        bool CompileShader(std::string_view shader_name) const noexcept;
+        //write shader data to shader_name.dnmShader if not exists get shader data from shader and write
+        bool WriteShaderData(std::string_view shader_name) const noexcept;
+
+        //TODO: this funcs might be private
+        //TODO: this func return be ShaderData
+        //if shader data exists in shader folder read if not exists compile
+        void ReadOrCompileShader(std::string_view shader_name) const noexcept;
+
         [[nodiscard]] constexpr DnmGL::Image *GetPlaceholderImage() const noexcept { return placeholder_image; };
         [[nodiscard]] constexpr DnmGL::Sampler *GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
         [[nodiscard]] constexpr const std::filesystem::path& GetShaderDirectory() const noexcept { return shader_directory; };
@@ -806,9 +891,13 @@ namespace DnmGL {
         CallbackFunc callback_func{};
         std::filesystem::path shader_directory{};
         SwapchainSettings swapchain_settings{};
+
+        ShaderCompiler *shader_compiler;
     };
 
     constexpr std::filesystem::path Context::GetShaderPath(std::string_view filename) const noexcept {
+        return shader_directory / filename += ".slang";
+
         switch (GetGraphicsBackend()) {
             case GraphicsBackend::eVulkan: return shader_directory / "Vulkan" / filename += ".spv";
             case GraphicsBackend::eD3D12: return shader_directory / "D3D12" / filename += ".dxil";
@@ -957,6 +1046,18 @@ namespace DnmGL {
         constexpr GraphicsPipeline(Context& context, const GraphicsPipelineDesc& desc) noexcept;
         
         virtual ~GraphicsPipeline() = default;
+
+        /*
+            struct BufferResourceDesc {
+                const DnmGL::Buffer *buffer;
+                uint32_t first_element;
+                uint32_t element_count;
+            };
+
+            void SetResource(std::string_view resource_name, const DnmGL::Buffer *buffer, uint32_t array_index);
+            void SetResource(std::string_view resource_name, const DnmGL::Image *image, uint32_t element_index);
+            void SetResource(std::string_view resource_name, const DnmGL::Sampler *sampler, uint32_t element_index);
+        */
 
         [[nodiscard]] constexpr auto HasMsaa() const noexcept { return m_desc.msaa != SampleCount::e1; }
         [[nodiscard]] constexpr auto HasDepthAttachment() const noexcept { return has_depth_attachment; }

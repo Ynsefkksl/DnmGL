@@ -1,4 +1,4 @@
-#include "DnmGL.slang.lib"
+#include "DnmGL.slang"
 
 static constexpr const float2 pos[] = {
     float2(-1.0, 1.0),
@@ -36,9 +36,9 @@ struct Sprite {
     float padding[2];
 };
 
-ReadonlyBuffer<Sprite> sprite_buffer : register(t0);
+ReadonlyBuffer<Sprite> sprite_buffer;
 
-UniformBuffer pc : register(b0) {
+UniformBuffer pc {
     float4x4 proj_mtx;
     float4 camera_pos;
 }
@@ -92,8 +92,8 @@ VertexOut VertMain(VertexIn in) {
     y = 0, w = 1 for uv.y value
 */
 
-ReadonlyImage atlas_texture : register(t1);
-Sampler atlas_sampler : register(s0);
+ReadonlyImage atlas_texture;
+Sampler atlas_sampler;
 
 [[shader("fragment")]]
 float4 FragMain(VertexOut in) : SV_Target {
