@@ -42,7 +42,10 @@ struct PushConstantStruct {
 
 ReadonlyBuffer<Sprite> sprite_buffer : register(t0);
 
-PushConstant PushConstantStruct pc;
+UniformBuffer pc {
+    float4x4 proj_mtx;
+    float4 camera_pos;
+}
 
 constexpr float2 FastPosCalc(float2 vert_pos, float2 pos, float2 scale, float angle) {
     const float2 rotated_pos = float2(

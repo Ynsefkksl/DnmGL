@@ -22,9 +22,22 @@
 #include <map>
 #include <set>
 
+<<<<<<< Updated upstream
 //TODO: vulkan supported feature override
 //TODO: support VK_KHR_imageless_framebuffer
 //TODO: test offline rendering
+=======
+//TODO: add vulkan supported feature override
+//TODO: add per-frame buffer (vulkan dynamic buffer like something)
+//TODO: add push constant support (or alternative something)
+//TODO: test offline rendering for both api's
+//TODO: Vertex and Index buffers broken, pwease fix dis fow pwe-Tuwin’ GPUs (๑˃ᴗ˂)ﻭ ♡
+//TODO: D3D12 uniform and copy alighment problem
+//TODO: complate for d3d12 generate mipmap function
+//TODO: stencil is broken
+//TODO: add compressed image formats
+
+>>>>>>> Stashed changes
 namespace DnmGL {
     class Context;
     class CommandBuffer;
@@ -36,6 +49,7 @@ namespace DnmGL {
     class GraphicsPipeline;
     class ResourceManager;
     class Framebuffer;
+    class ShaderCompiler;
 
     template <class... Types> 
     constexpr void DnmGLAssertFunc(std::string_view func_name, std::string_view condition_str, bool condition, const std::format_string<Types...> fmt, Types&&... args) {
@@ -284,14 +298,24 @@ namespace DnmGL {
         eWrite
     };
 
+<<<<<<< Updated upstream
+=======
+    enum class CommandBufferPassType : uint8_t {
+        eNone,
+        eTransfer,
+        eCompute,
+        eRendering,
+    };
+
+>>>>>>> Stashed changes
     //same with vulkan
-    enum class SamplerMipmapMode {
+    enum class SamplerMipmapMode : uint8_t {
         eNearest,
         eLinear,
     };
 
     //same with vulkan
-    enum class CompareOp {
+    enum class CompareOp : uint8_t {
         eNone,
         eNever,
         eLess,
@@ -304,14 +328,14 @@ namespace DnmGL {
     };
 
     //same with vulkan
-    enum class PolygonMode {
+    enum class PolygonMode : uint8_t {
         eFill,
         eLine,
         ePoint
     };
 
     //same with vulkan
-    enum class CullMode {
+    enum class CullMode : uint8_t {
         eNone,
         eFront,
         eBack,
@@ -319,12 +343,12 @@ namespace DnmGL {
     };
 
     //same with vulkan
-    enum class FrontFace {
+    enum class FrontFace : uint8_t {
         eCounterClockwise,
         eClockwise
     };
 
-    enum class SamplerFilter {
+    enum class SamplerFilter : uint8_t {
         //same with vulkan
         eNearest,
         eLinear,
@@ -357,7 +381,7 @@ namespace DnmGL {
     };
 
     //same with vulkan
-    enum class PrimitiveTopology {
+    enum class PrimitiveTopology : uint8_t {
         ePointList,
         eLineList,
         eLineStrip,
@@ -382,6 +406,7 @@ namespace DnmGL {
         eWritableImage,
         eUniformBuffer,
         eSampler,
+        //TODO: ePushConstant
     };
 
     enum class ContextState : uint8_t {
@@ -391,7 +416,7 @@ namespace DnmGL {
     };
 
     //same with vulkan
-    enum class SampleCount {
+    enum class SampleCount : uint8_t {
         e1 = 1 << 0,
         e2 = 1 << 1,
         e4 = 1 << 2,
@@ -417,7 +442,7 @@ namespace DnmGL {
     };
     using ImageUsageFlags = Flags<ImageUsageBits>;
 
-    enum class ShaderStageBits : uint32_t {
+    enum class ShaderStageBits : uint8_t {
         eNone = 0x0,
         eVertex = 0x1,
         eFragment = 0x2,
@@ -695,6 +720,7 @@ namespace DnmGL {
         void* hInstance;
     };
 
+    //TODO: other window managers
     struct MacWindowHandle {
         
     };
@@ -754,7 +780,16 @@ namespace DnmGL {
 
     using CallbackFunc = std::function<void(std::string_view message, MessageType error, std::string_view source)>;
 
+<<<<<<< Updated upstream
     class Context {
+=======
+    //TODO: maybe i do checking api support 
+    extern "C" DNMGL_API DnmGL::Context *CreateVulkanContext();
+    extern "C" DNMGL_API DnmGL::Context *CreateD3D12Context();
+    extern "C" DNMGL_API DnmGL::Context *CreateMetalContext();
+
+    class DNMGL_API Context {
+>>>>>>> Stashed changes
     public:
         virtual ~Context() = default;
 
@@ -769,15 +804,25 @@ namespace DnmGL {
         virtual void Render(const std::function<bool(CommandBuffer*)>& func) = 0;
         virtual void WaitForGPU() = 0;
 
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc&) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc&) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Sampler> CreateSampler(const DnmGL::SamplerDesc&) noexcept = 0;
+        [[nodiscard]] virtual std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc &) noexcept = 0;
+        [[nodiscard]] virtual std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc &) noexcept = 0;
+        [[nodiscard]] virtual std::unique_ptr<DnmGL::Sampler> CreateSampler(const DnmGL::SamplerDesc &) noexcept = 0;
         [[nodiscard]] virtual std::unique_ptr<DnmGL::Shader> CreateShader(std::string_view) noexcept = 0;
         [[nodiscard]] virtual std::unique_ptr<DnmGL::ResourceManager> CreateResourceManager(std::span<const DnmGL::Shader*>) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::ComputePipeline> CreateComputePipeline(const DnmGL::ComputePipelineDesc&) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::GraphicsPipeline> CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc&) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc&) noexcept = 0;
+        [[nodiscard]] virtual std::unique_ptr<DnmGL::ComputePipeline> CreateComputePipeline(const DnmGL::ComputePipelineDesc &) noexcept = 0;
+        [[nodiscard]] virtual std::unique_ptr<DnmGL::GraphicsPipeline> CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc &) noexcept = 0;
+        [[nodiscard]] virtual std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept = 0;
         [[nodiscard]] virtual ContextState GetContextState() noexcept = 0;
+        
+        //compile shader and add cache if shader exists override shader data in cache
+        bool CompileShader(std::string_view shader_name) const noexcept;
+        //write shader data to shader_name.dnmShader if not exists get shader data from shader and write
+        bool WriteShaderData(std::string_view shader_name) const noexcept;
+
+        //TODO: this funcs might be private
+        //TODO: this func return be ShaderData
+        //if shader data exists in shader folder read if not exists compile
+        void ReadOrCompileShader(std::string_view shader_name) const noexcept;
 
         [[nodiscard]] constexpr DnmGL::Image* GetPlaceholderImage() const noexcept { return placeholder_image; };
         [[nodiscard]] constexpr DnmGL::Sampler* GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
@@ -792,7 +837,7 @@ namespace DnmGL {
             if (callback_func) callback_func(message, error, source);
         };
     protected:
-        virtual void IInit(const ContextDesc&) = 0;
+        virtual void IInit(const ContextDesc &) = 0;
         virtual void ISetSwapchainSettings(const SwapchainSettings &settings) = 0;
 
         DnmGL::Image *placeholder_image{};
@@ -811,13 +856,13 @@ namespace DnmGL {
 
     class RHIObject {
     public:
-        constexpr RHIObject(Context& context) noexcept
+        constexpr RHIObject(Context &context) noexcept
             : context(&context) {}
 
-        RHIObject(RHIObject&&) = delete;
-        RHIObject(RHIObject&) = delete;
-        RHIObject& operator=(RHIObject&&) = delete;
-        RHIObject& operator=(RHIObject&) = delete;
+        RHIObject(RHIObject &&) = delete;
+        RHIObject(RHIObject &) = delete;
+        RHIObject& operator=(RHIObject &&) = delete;
+        RHIObject& operator=(RHIObject &) = delete;
 
         Context* context;
     };
@@ -1340,6 +1385,22 @@ namespace DnmGL {
         ISetSwapchainSettings(settings);
     }
 
+<<<<<<< Updated upstream
+=======
+    template <typename T>
+    constexpr T *Buffer::GetMappedPtr() const noexcept {
+        DnmGLAssert(m_desc.memory_host_access != MemoryHostAccess::eNone, 
+            "MemoryHostAccess::eNone, must be MemoryHostAccess::eWrite or MemoryHostAccess::eReadWrite");
+
+        return reinterpret_cast<T *>(m_mapped_ptr);
+    }
+
+    constexpr Buffer::Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept : RHIObject(context), m_desc(desc) {
+        if (m_desc.usage_flags.Has(BufferUsageBits::eUniform)) m_desc.element_size = (m_desc.element_size + 255) & ~255;
+        if (m_desc.element_size < 4) m_desc.element_size = 4;
+    }
+
+>>>>>>> Stashed changes
     constexpr GraphicsPipeline::GraphicsPipeline(Context& ctx, const GraphicsPipelineDesc& desc) noexcept
     : RHIObject(ctx), m_desc(desc) {
         DnmGLAssert(m_desc.resource_manager, "resource manager can not be null")
