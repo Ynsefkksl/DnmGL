@@ -152,7 +152,7 @@ namespace DnmGL {
         }
 
         [[nodiscard]] auto GetSpriteCount() const { return m_sprite_count; }
-        [[nodiscard]] auto GetCapacity() const { return m_sprite_buffer->GetDesc().size / sizeof(SpriteData); }
+        [[nodiscard]] auto GetCapacity() const { return m_sprite_buffer->GetDesc().element_count; }
 
         [[nodiscard]] auto* GetSpriteBuffer() const { return m_sprite_buffer.get(); }
         [[nodiscard]] auto* GetGraphicsPipeline() const  { return m_graphics_pipeline.get(); }
@@ -192,6 +192,7 @@ namespace DnmGL {
         DnmGL::Shader::Ptr m_fragment_shader{};
 
         DnmGL::Buffer::Ptr m_sprite_buffer{};
+        DnmGL::Buffer::Ptr m_camera_buffer{};
         SpriteCamera* m_camera_ptr{};
         uint32_t m_sprite_count{};
     };
@@ -201,13 +202,24 @@ namespace DnmGL {
             const auto init_capacity = std::max(desc.init_capacity, 1u);
     
             m_sprite_buffer = desc.context->CreateBuffer({
-                .size = init_capacity * sizeof(SpriteData),
+                .element_size = sizeof(SpriteData),
+                .element_count = init_capacity,
                 .memory_host_access = DnmGL::MemoryHostAccess::eWrite,
                 .memory_type = DnmGL::MemoryType::eDeviceMemory,
                 .usage_flags = DnmGL::BufferUsageBits::eReadonlyResource,
             });
             
             m_handles.reserve(init_capacity);
+        }
+
+        {
+            m_camera_buffer = desc.context->CreateBuffer({
+                .element_size = sizeof(SpriteCameraData),
+                .element_count = 1,
+                .memory_host_access = DnmGL::MemoryHostAccess::eWrite,
+                .memory_type = DnmGL::MemoryType::eAuto,
+                .usage_flags = DnmGL::BufferUsageBits::eUniform,
+            });
         }
 
         {
@@ -220,7 +232,7 @@ namespace DnmGL {
 
             GraphicsPipelineDesc pipeline_desc{};
             pipeline_desc.color_attachment_formats =  { ImageFormat::eRGBA8Norm };
-            pipeline_desc.depth_stencil_format =  GetContext()->GetSwapchainSettings().depth_buffer_format;
+            pipeline_desc.depth_stencil_format = GetContext()->GetSwapchainSettings().depth_buffer_format;
             pipeline_desc.vertex_entry_point = "VertMain"; 
             pipeline_desc.vertex_shader = m_shader.get(); 
             pipeline_desc.fragment_entry_point = "FragMain"; 
@@ -238,40 +250,48 @@ namespace DnmGL {
         }
 
         {
-            {
-                const ResourceDesc atlas_tex_resource[] = {
-                    {
-                        .image = desc.atlas_texture ? desc.atlas_texture : GetContext()->GetPlaceholderImage(),
-                        .subresource = desc.atlas_texture_subresource ? *desc.atlas_texture_subresource : ImageSubresource{},
-                        .binding = 1,
-                        .array_element = 0,
-                    }
-                };
-                m_resource_manager->SetReadonlyResource(atlas_tex_resource);
-            }
-            {
-                const SamplerResourceDesc sampler_resource[] = {
-                    {
-                        .sampler = desc.sampler ? desc.sampler : GetContext()->GetPlaceholderSampler(),
-                        .binding = 0,
-                        .array_element = 0,
-                    }
-                };
-                m_resource_manager->SetSampler(sampler_resource);
-            }
+            const ResourceDesc resource_desc[] = {
+                {
+                    .image = desc.atlas_texture ? desc.atlas_texture : GetContext()->GetPlaceholderImage(),
+                    .subresource = desc.atlas_texture_subresource ? *desc.atlas_texture_subresource : ImageSubresource{},
+                    .binding = 1,
+                    .array_element = 0,
+                }
+            };
+            m_resource_manager->SetReadonlyResource(resource_desc);
         }
-
         {
-            const ResourceDesc sprite_buffer_resources[] = {
+            const SamplerResourceDesc resource_desc[] = {
+                {
+                    .sampler = desc.sampler ? desc.sampler : GetContext()->GetPlaceholderSampler(),
+                    .binding = 0,
+                    .array_element = 0,
+                }
+            };
+            m_resource_manager->SetSamplerResource(resource_desc);
+        }
+        {
+            const ResourceDesc resource_desc[] = {
                 {
                     .buffer = m_sprite_buffer.get(),
-                    .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().size),
+                    .element_count = m_sprite_buffer->GetDesc().element_count,
                     .binding = 0,
                     .array_element = 0,
                 },
             };
-            m_resource_manager->SetReadonlyResource(sprite_buffer_resources);
+            m_resource_manager->SetReadonlyResource(resource_desc);
+        }
+        {
+            const UniformResourceDesc resource_desc[] = {
+                {
+                    .buffer = m_camera_buffer.get(),
+                    .offset = 0,
+                    .size = m_camera_buffer->GetDesc().element_size,
+                    .binding = 0,
+                    .array_element = 0,
+                },
+            };
+            m_resource_manager->SetUniformResource(resource_desc);
         }
     }
 
@@ -281,13 +301,11 @@ namespace DnmGL {
             return;
 
         m_handles.reserve(reserve_count);
-        
-        const auto new_buffer_size = 
-            (GetCapacity() + (reserve_count < GetCapacity() ? GetCapacity() : reserve_count)) * sizeof(SpriteData);
 
         {
             auto new_buffer = GetContext()->CreateBuffer({
-                .size = new_buffer_size,
+                .element_size = sizeof(SpriteData),
+                .element_count = (GetCapacity() + (reserve_count < GetCapacity() ? GetCapacity() : reserve_count)),
                 .memory_host_access = DnmGL::MemoryHostAccess::eWrite,
                 .memory_type = DnmGL::MemoryType::eHostMemory,
                 .usage_flags = DnmGL::BufferUsageBits::eReadonlyResource,
@@ -304,8 +322,7 @@ namespace DnmGL {
             const ResourceDesc sprite_buffer_resources[] = {
                 {
                     .buffer = m_sprite_buffer.get(),
-                    .offset = 0,
-                    .size = static_cast<uint32_t>(m_sprite_buffer->GetDesc().size),
+                    .element_count = m_sprite_buffer->GetDesc().element_count,
                     .binding = 0,
                     .array_element = 0,
                 },
@@ -345,7 +362,7 @@ namespace DnmGL {
     }
 
     inline SpriteHandle SpriteManager::CreateSpriteBase(const DnmGL::SpriteData& sprite_data) {
-        memcpy(
+        std::memcpy(
             &reinterpret_cast<SpriteData*>(GetSpriteBufferMappedPtr())[GetSpriteCount()],
             &sprite_data, 
             sizeof(SpriteData)
@@ -355,7 +372,7 @@ namespace DnmGL {
     }
 
     inline std::vector<SpriteHandle> SpriteManager::CreateSpriteBase(std::span<const DnmGL::SpriteData> sprite_data) {
-        memcpy(
+        std::memcpy(
             &GetSpriteBufferMappedPtr()[GetSpriteCount()],
             sprite_data.data(), 
             sizeof(SpriteData) * sprite_data.size()
@@ -402,8 +419,10 @@ namespace DnmGL {
             return;
         }
 
-        memcpy(
-            &((*(GetSpriteBufferMappedPtr() + handle.GetValue())).*member),
+        auto &sprite_data = *(GetSpriteBufferMappedPtr() + handle.GetValue());
+
+        std::memcpy(
+            &(sprite_data.*member),
             &data,
             sizeof(data)
         );
@@ -414,7 +433,7 @@ namespace DnmGL {
             return;
         }
 
-        memcpy(
+        std::memcpy(
             GetSpriteBufferMappedPtr() + handle.GetValue(),
             &sprite_data,
             sizeof(SpriteData)
@@ -440,17 +459,12 @@ namespace DnmGL {
     }
 
     inline void SpriteManager::DrawSprites(DnmGL::CommandBuffer *command_buffer) noexcept {
+        if (!m_sprite_count) return;
         DnmGLAssert(m_camera_ptr , "camera cannot be null");
 
-        if (m_sprite_count) {
-            command_buffer->PushConstant(
-                m_graphics_pipeline.get(), 
-                DnmGL::ShaderStageBits::eVertex,
-                0, 
-                sizeof(SpriteCameraData), 
-                &m_camera_ptr->GetCameraData());
+        auto *mapped_ptr = m_camera_buffer->GetMappedPtr();
+        std::memcpy(mapped_ptr, &m_camera_ptr->GetCameraData(), sizeof(SpriteCameraData));
 
-            command_buffer->Draw(4, m_sprite_count);
-        }
+        command_buffer->Draw(4, m_sprite_count);
     }
 }

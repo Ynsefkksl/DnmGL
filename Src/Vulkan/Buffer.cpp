@@ -30,7 +30,7 @@ namespace DnmGL::Vulkan {
         buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         buffer_create_info.usage = static_cast<uint32_t>(GetVkUsageFlags(m_desc.usage_flags));
         buffer_create_info.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
-        buffer_create_info.size = m_desc.size;
+        buffer_create_info.size = m_desc.element_size * m_desc.element_count;
 
         VmaAllocationInfo alloc_info;
         VmaAllocationCreateInfo alloc_create_info{};

@@ -13,18 +13,5 @@ add_executable(${PROJECT_NAME} main.cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     glfw
-<<<<<<< Updated upstream
-    )
-
-target_include_directories(${PROJECT_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Header/
-)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Examples_Executables
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Examples_Executables
-    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Examples_Executables
-=======
     DnmGL::DnmGL
->>>>>>> Stashed changes
 )

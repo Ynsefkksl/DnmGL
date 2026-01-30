@@ -22,11 +22,6 @@
 #include <map>
 #include <set>
 
-<<<<<<< Updated upstream
-//TODO: vulkan supported feature override
-//TODO: support VK_KHR_imageless_framebuffer
-//TODO: test offline rendering
-=======
 //TODO: add vulkan supported feature override
 //TODO: add per-frame buffer (vulkan dynamic buffer like something)
 //TODO: add push constant support (or alternative something)
@@ -37,7 +32,6 @@
 //TODO: stencil is broken
 //TODO: add compressed image formats
 
->>>>>>> Stashed changes
 namespace DnmGL {
     class Context;
     class CommandBuffer;
@@ -49,7 +43,6 @@ namespace DnmGL {
     class GraphicsPipeline;
     class ResourceManager;
     class Framebuffer;
-    class ShaderCompiler;
 
     template <class... Types> 
     constexpr void DnmGLAssertFunc(std::string_view func_name, std::string_view condition_str, bool condition, const std::format_string<Types...> fmt, Types&&... args) {
@@ -63,7 +56,6 @@ namespace DnmGL {
     #define DnmGLAssert(condition, fmt, ...) \
         DnmGL::DnmGLAssertFunc(std::source_location::current().function_name(), #condition, condition, fmt, __VA_ARGS__);
 
-    //TODO: add compressed formats
     //just stencil type not supported in d3d12
     //16d 8s type not supported in metal
     //rgb types not supported in metal
@@ -262,16 +254,6 @@ namespace DnmGL {
         return !is_not_color_format;
     }
 
-    enum class BufferResourceType {
-        eUniformBuffer,
-        eStorageBuffer
-    };
-
-    enum class ImageResourceType {
-        eStorage,
-        eSampledImage
-    };
-
     enum class ImageSubresourceType : uint8_t {
         e1D,
         e2D,
@@ -298,8 +280,6 @@ namespace DnmGL {
         eWrite
     };
 
-<<<<<<< Updated upstream
-=======
     enum class CommandBufferPassType : uint8_t {
         eNone,
         eTransfer,
@@ -307,7 +287,6 @@ namespace DnmGL {
         eRendering,
     };
 
->>>>>>> Stashed changes
     //same with vulkan
     enum class SamplerMipmapMode : uint8_t {
         eNearest,
@@ -331,7 +310,6 @@ namespace DnmGL {
     enum class PolygonMode : uint8_t {
         eFill,
         eLine,
-        ePoint
     };
 
     //same with vulkan
@@ -339,7 +317,6 @@ namespace DnmGL {
         eNone,
         eFront,
         eBack,
-        eFrontAndBack,
     };
 
     //same with vulkan
@@ -479,7 +456,7 @@ namespace DnmGL {
     };
 
     struct RenderAttachment {
-        DnmGL::Image* image;
+        DnmGL::Image *image;
         ImageSubresource subresource;
     };
 
@@ -511,7 +488,8 @@ namespace DnmGL {
     };
 
     struct BufferDesc {
-        uint64_t size;
+        uint32_t element_size;
+        uint32_t element_count;
         MemoryHostAccess memory_host_access;
         MemoryType memory_type;
         BufferUsageFlags usage_flags;
@@ -525,11 +503,6 @@ namespace DnmGL {
     struct RenderPassBeginInfo {
         std::span<ColorFloat> color_clear_values;
         std::optional<DepthStencilClearValue> depth_stencil_clear_value;
-    };
-
-    struct PushConstantInfo {
-        uint32_t size;
-        uint32_t offset;
     };
 
     struct BindingInfo {
@@ -546,7 +519,10 @@ namespace DnmGL {
         std::vector<BindingInfo> uniform_buffer_resources;
         std::vector<BindingInfo> sampler_resources;
 
-        std::optional<PushConstantInfo> push_constant;
+        constexpr bool HasReadonlyResource() const noexcept { return !readonly_resources.empty(); }
+        constexpr bool HasWritableResource() const noexcept { return !writable_resources.empty(); }
+        constexpr bool HasUniformResource() const noexcept { return !uniform_buffer_resources.empty(); }
+        constexpr bool HasSamplerResource() const noexcept { return !sampler_resources.empty(); }
     };
 
     struct UniformResourceDesc {
@@ -560,8 +536,8 @@ namespace DnmGL {
 
     struct ResourceDesc {
         Buffer *buffer;
-        uint32_t offset;
-        uint32_t size;
+        uint32_t first_element;
+        uint32_t element_count;
         // or
         Image *image;
         ImageSubresource subresource;
@@ -576,18 +552,17 @@ namespace DnmGL {
         uint32_t binding;
         uint32_t array_element;
     };
-
+    
     struct GraphicsPipelineDesc {
         std::string vertex_entry_point;
-        Shader* vertex_shader;
+        Shader *vertex_shader;
         std::string fragment_entry_point;
-        Shader* fragment_shader;
-        ResourceManager* resource_manager;
+        Shader *fragment_shader;
+        ResourceManager *resource_manager;
         std::vector<ImageFormat> color_attachment_formats;
         std::vector<VertexFormat> vertex_binding_formats;
         // depth_format ignore if !(depth_test || depth_write) 
         ImageFormat depth_stencil_format;
-        ImageFormat stencil_format;
         CompareOp depth_test_compare_op;
         PolygonMode polygone_mode;
         CullMode cull_mode;
@@ -612,21 +587,21 @@ namespace DnmGL {
 
     struct ComputePipelineDesc {;
         std::string shader_entry_point;
-        Shader* shader;
-        ResourceManager* resource_manager;
+        Shader *shader;
+        ResourceManager *resource_manager;
     };
 
     struct BufferToBufferCopyDesc {
-        Buffer* src_buffer;
-        Buffer* dst_buffer;
+        Buffer *src_buffer;
+        Buffer *dst_buffer;
         uint32_t src_offset;
         uint32_t dst_offset;
         uint64_t copy_size;
     };
 
     struct BufferToImageCopyDesc {
-        Buffer* src_buffer;
-        Image* dst_image;
+        Buffer *src_buffer;
+        Image *dst_image;
         ImageSubresource image_subresource;
         uint32_t buffer_offset;
         Uint3 copy_offset;
@@ -634,8 +609,8 @@ namespace DnmGL {
     };
 
     struct ImageToImageCopyDesc {
-        Image* src_image;
-        Image* dst_image;
+        Image *src_image;
+        Image *dst_image;
         ImageSubresource src_image_subresource;
         ImageSubresource dst_image_subresource;
         Uint3 src_offset;
@@ -644,8 +619,8 @@ namespace DnmGL {
     };
 
     struct ImageToBufferCopyDesc {
-        Image* src_image;
-        Buffer* dst_buffer;
+        Image *src_image;
+        Buffer *dst_buffer;
         ImageSubresource image_subresource;
         uint32_t buffer_offset;
         Uint3 copy_offset;
@@ -666,7 +641,7 @@ namespace DnmGL {
             out = uint32_t(depth_load) << 30;
             out |= uint32_t(stencil_load) << 28;
             for (uint32_t i{}; i < 8; i++) {
-                out |= uint32_t(color_load[i]) << (26 - (i * 2));
+                out |= uint32_t(color_load[i]) << (26 - (i  *2));
             }
             out |= uint32_t(depth_store) << 11;
             out |= uint32_t(stencil_store) << 10;
@@ -716,8 +691,8 @@ namespace DnmGL {
     };
 
     struct WinWindowHandle {
-        void* hwnd;
-        void* hInstance;
+        void *hwnd;
+        void *hInstance;
     };
 
     //TODO: other window managers
@@ -780,19 +755,15 @@ namespace DnmGL {
 
     using CallbackFunc = std::function<void(std::string_view message, MessageType error, std::string_view source)>;
 
-<<<<<<< Updated upstream
-    class Context {
-=======
     //TODO: maybe i do checking api support 
     extern "C" DNMGL_API DnmGL::Context *CreateVulkanContext();
     extern "C" DNMGL_API DnmGL::Context *CreateD3D12Context();
     extern "C" DNMGL_API DnmGL::Context *CreateMetalContext();
 
-    class DNMGL_API Context {
->>>>>>> Stashed changes
+    class Context {
     public:
         virtual ~Context() = default;
-
+        
         [[nodiscard]] virtual GraphicsBackend GetGraphicsBackend() const noexcept = 0;
 
         void Init(const ContextDesc &);
@@ -814,18 +785,8 @@ namespace DnmGL {
         [[nodiscard]] virtual std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept = 0;
         [[nodiscard]] virtual ContextState GetContextState() noexcept = 0;
         
-        //compile shader and add cache if shader exists override shader data in cache
-        bool CompileShader(std::string_view shader_name) const noexcept;
-        //write shader data to shader_name.dnmShader if not exists get shader data from shader and write
-        bool WriteShaderData(std::string_view shader_name) const noexcept;
-
-        //TODO: this funcs might be private
-        //TODO: this func return be ShaderData
-        //if shader data exists in shader folder read if not exists compile
-        void ReadOrCompileShader(std::string_view shader_name) const noexcept;
-
-        [[nodiscard]] constexpr DnmGL::Image* GetPlaceholderImage() const noexcept { return placeholder_image; };
-        [[nodiscard]] constexpr DnmGL::Sampler* GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
+        [[nodiscard]] constexpr DnmGL::Image *GetPlaceholderImage() const noexcept { return placeholder_image; };
+        [[nodiscard]] constexpr DnmGL::Sampler *GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
         [[nodiscard]] constexpr const std::filesystem::path& GetShaderDirectory() const noexcept { return shader_directory; };
         [[nodiscard]] constexpr const auto& GetSwapchainSettings() const noexcept { return swapchain_settings; };
         [[nodiscard]] constexpr std::filesystem::path GetShaderPath(std::string_view filename) const noexcept;
@@ -864,7 +825,7 @@ namespace DnmGL {
         RHIObject& operator=(RHIObject &&) = delete;
         RHIObject& operator=(RHIObject &) = delete;
 
-        Context* context;
+        Context *context;
     };
 
     class Framebuffer : public RHIObject {
@@ -898,17 +859,16 @@ namespace DnmGL {
     class Buffer : public RHIObject {
     public:
         using Ptr = std::unique_ptr<DnmGL::Buffer>;
-        constexpr Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept
-            : RHIObject(context),
-            m_desc(desc) {}
+        constexpr Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept;
+            
         virtual ~Buffer() = default;
 
         template <typename T = uint8_t>
-        [[nodiscard]] constexpr T* GetMappedPtr() const noexcept { return reinterpret_cast<T*>(m_mapped_ptr); }
+        [[nodiscard]] constexpr T *GetMappedPtr() const noexcept;
 
         [[nodiscard]] constexpr const auto& GetDesc() const noexcept { return m_desc; }
     protected:
-        uint8_t* m_mapped_ptr;
+        uint8_t *m_mapped_ptr;
 
         DnmGL::BufferDesc m_desc;
     };
@@ -948,7 +908,7 @@ namespace DnmGL {
         [[nodiscard]] constexpr const auto& GetFilename() const noexcept { return m_filename; }
         [[nodiscard]] constexpr std::filesystem::path GetFilePath() const noexcept { return context->GetShaderPath(m_filename); }
         [[nodiscard]] constexpr std::span<const EntryPointInfo> GetEntryPoints() const noexcept { return m_entry_point_infos; }
-        [[nodiscard]] constexpr const EntryPointInfo* GetEntryPoint(std::string_view name) const noexcept;
+        [[nodiscard]] constexpr const EntryPointInfo *GetEntryPoint(std::string_view name) const noexcept;
     protected:
         const std::string m_filename;
         std::vector<EntryPointInfo> m_entry_point_infos;
@@ -964,8 +924,8 @@ namespace DnmGL {
 
         void SetReadonlyResource(std::span<const ResourceDesc> update_resource);
         void SetWritableResource(std::span<const ResourceDesc> update_resource);
-        void SetUniformBuffer(std::span<const UniformResourceDesc> update_resource);
-        void SetSampler(std::span<const SamplerResourceDesc> update_resource);
+        void SetUniformResource(std::span<const UniformResourceDesc> update_resource);
+        void SetSamplerResource(std::span<const SamplerResourceDesc> update_resource);
 
         [[nodiscard]] constexpr const auto& GetShaders() const noexcept { return m_shaders; }
 
@@ -981,8 +941,8 @@ namespace DnmGL {
     protected:
         virtual void ISetReadonlyResource(std::span<const ResourceDesc> update_resource) = 0;
         virtual void ISetWritableResource(std::span<const ResourceDesc> update_resource) = 0;
-        virtual void ISetUniformBuffer(std::span<const UniformResourceDesc> update_resource) = 0;
-        virtual void ISetSampler(std::span<const SamplerResourceDesc> update_resource) = 0;
+        virtual void ISetUniformResource(std::span<const UniformResourceDesc> update_resource) = 0;
+        virtual void ISetSamplerResource(std::span<const SamplerResourceDesc> update_resource) = 0;
 
         const std::vector<const Shader*> m_shaders;
         std::vector<BindingInfo> m_readonly_resource_bindings;
@@ -1022,6 +982,7 @@ namespace DnmGL {
     };
 
     class CommandBuffer : public RHIObject {
+        CommandBufferPassType active_pass{};
     public:
         using Ptr = std::unique_ptr<DnmGL::CommandBuffer>;
         constexpr CommandBuffer(Context& context) noexcept : RHIObject(context) {}
@@ -1039,7 +1000,7 @@ namespace DnmGL {
         void BeginComputePass();
         void EndComputePass();
 
-        void BindPipeline(const DnmGL::ComputePipeline* pipeline);
+        void BindPipeline(const DnmGL::ComputePipeline *pipeline);
 
         void Draw(uint32_t vertex_count, uint32_t instance_count);
         void DrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset);
@@ -1047,9 +1008,6 @@ namespace DnmGL {
 
         void SetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth);
         void SetScissor(Uint2 extent, Uint2 offset);
-
-        void PushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr);
-        void PushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr);
 
         void CopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc);
         void CopyImageToImage(const DnmGL::ImageToImageCopyDesc& desc);
@@ -1064,20 +1022,22 @@ namespace DnmGL {
         template <typename T> void UploadData(DnmGL::Buffer *buffer, std::span<const T> data, uint32_t offset);
         //TODO: maybe has UploadImageData struct
         template <typename T> void UploadData(DnmGL::Image *image, 
-                                                        const ImageSubresource& subresource,
-                                                        std::span<const T> data, 
-                                                        Uint3 copy_extent, 
-                                                        Uint3 copy_offset);
+                                                const ImageSubresource& subresource,
+                                                std::span<const T> data, 
+                                                Uint3 copy_extent, 
+                                                Uint3 copy_offset);
+
+        constexpr auto GetPassType() const noexcept { return active_pass; }
     protected:
         virtual void IBegin() = 0;
         virtual void IEnd() = 0;
 
         virtual void IUploadData(DnmGL::Image *image, 
                                 const ImageSubresource& subresource, 
-                                const void* data, 
+                                const void *data, 
                                 Uint3 copy_extent, 
                                 Uint3 copy_offset) = 0;
-        virtual void IUploadData(DnmGL::Buffer *buffer, const void* data, uint32_t size, uint32_t offset) = 0;
+        virtual void IUploadData(DnmGL::Buffer *buffer, const void *data, uint32_t size, uint32_t offset) = 0;
 
         virtual void IBeginRendering(const BeginRenderingDesc& desc) = 0;
         virtual void IEndRendering() = 0;
@@ -1088,7 +1048,7 @@ namespace DnmGL {
         virtual void IBeginComputePass() = 0;
         virtual void IEndComputePass() = 0;
 
-        virtual void IBindPipeline(const DnmGL::ComputePipeline* pipeline) = 0;
+        virtual void IBindPipeline(const DnmGL::ComputePipeline *pipeline) = 0;
 
         virtual void IDraw(uint32_t vertex_count, uint32_t instance_count) = 0;
         virtual void IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) = 0;
@@ -1096,9 +1056,6 @@ namespace DnmGL {
 
         virtual void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) = 0;
         virtual void ISetScissor(Uint2 extent, Uint2 offset) = 0;
-
-        virtual void IPushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr) = 0;
-        virtual void IPushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr) = 0;
 
         virtual void ICopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc) = 0;
         virtual void ICopyImageToImage(const DnmGL::ImageToImageCopyDesc& descs) = 0;
@@ -1115,13 +1072,6 @@ namespace DnmGL {
         ComputePipeline *active_compute_pipeline{};
         GraphicsPipeline *active_graphics_pipeline{};
         Framebuffer *active_framebuffer{};
-
-        enum class PassType {
-            eNone,
-            eTransfer,
-            eCompute,
-            eRendering,
-        } active_pass{};
     };
 
     inline void CommandBuffer::Begin() {
@@ -1129,12 +1079,12 @@ namespace DnmGL {
     }
 
     inline void CommandBuffer::End() {
-        if (active_pass != PassType::eNone) {
+        if (active_pass != CommandBufferPassType::eNone) {
             switch (active_pass) {
-                case PassType::eNone: std::unreachable(); break;
-                case PassType::eTransfer: EndCopyPass(); break;
-                case PassType::eCompute: EndComputePass(); break;
-                case PassType::eRendering: EndRendering(); break;
+                case CommandBufferPassType::eNone: std::unreachable(); break;
+                case CommandBufferPassType::eTransfer: EndCopyPass(); break;
+                case CommandBufferPassType::eCompute: EndComputePass(); break;
+                case CommandBufferPassType::eRendering: EndRendering(); break;
             }
         }
 
@@ -1142,7 +1092,7 @@ namespace DnmGL {
     }
     
     inline void CommandBuffer::BeginRendering(const BeginRenderingDesc& desc) {
-        DnmGLAssert(active_pass == PassType::eNone, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eNone, 
         "BeginRendering cannot be call in some pass")
 
         IsValidBeginRenderingDesc(desc);
@@ -1150,76 +1100,76 @@ namespace DnmGL {
         active_graphics_pipeline = desc.pipeline;
         active_framebuffer = desc.framebuffer;
         IBeginRendering(desc);
-        active_pass = PassType::eRendering;
+        active_pass = CommandBufferPassType::eRendering;
     }
 
     inline void CommandBuffer::EndRendering() {
-        DnmGLAssert(active_pass == PassType::eRendering, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, 
         "BeginRendering must be called before EndRendering")
 
         active_graphics_pipeline = nullptr;
         active_framebuffer = nullptr;
         IEndRendering();
-        active_pass = PassType::eNone;
+        active_pass = CommandBufferPassType::eNone;
     }
 
     inline void CommandBuffer::BeginComputePass() {
-        DnmGLAssert(active_pass == PassType::eNone, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eNone, 
         "BeginCompute cannot be call in some pass")
 
         active_compute_pipeline = nullptr;
         IBeginComputePass();
-        active_pass = PassType::eCompute;
+        active_pass = CommandBufferPassType::eCompute;
     }
 
     inline void CommandBuffer::EndComputePass() {
-        DnmGLAssert(active_pass == PassType::eCompute, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, 
         "BeginCompute must be called before EndCompute")
 
         active_compute_pipeline = nullptr;
         IEndComputePass();
-        active_pass = PassType::eNone;
+        active_pass = CommandBufferPassType::eNone;
     }
 
     inline void CommandBuffer::BeginCopyPass() {
-        DnmGLAssert(active_pass == PassType::eNone, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eNone, 
         "BeginCopyPass cannot be call in some pass")
 
         IBeginCopyPass();
-        active_pass = PassType::eTransfer;
+        active_pass = CommandBufferPassType::eTransfer;
     }
 
     inline void CommandBuffer::EndCopyPass() {
-        DnmGLAssert(active_pass == PassType::eTransfer, 
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, 
         "BeginCopyPass must be called before EndCopyPass")
 
         IEndCopyPass();
-        active_pass = PassType::eNone;
+        active_pass = CommandBufferPassType::eNone;
     }
 
     inline void CommandBuffer::BindPipeline(const DnmGL::ComputePipeline *pipeline) {
-        DnmGLAssert(active_pass == PassType::eCompute, "this function must be call in compute pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, "this function must be call in compute pass")
         DnmGLAssert(pipeline, "pipeline cannot be null")
 
         IBindPipeline(pipeline);
     }
 
     inline void CommandBuffer::Draw(uint32_t vertex_count, uint32_t instance_count) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         if (vertex_count || instance_count)
             IDraw(vertex_count, instance_count);
     }
 
     inline void CommandBuffer::DrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         if (index_count || instance_count)
             IDrawIndexed(index_count, instance_count, vertex_offset);
     }
 
     inline void CommandBuffer::Dispatch(uint32_t x, uint32_t y, uint32_t z) {
-        DnmGLAssert(active_pass == PassType::eCompute, "this function must be call in compute pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, "this function must be call in compute pass")
         DnmGLAssert(active_compute_pipeline, "there is no binded compute pipeline")
 
         if (x && y && z)
@@ -1228,41 +1178,21 @@ namespace DnmGL {
     
     inline void CommandBuffer::SetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         ISetViewport(extent, offset, min_depth, max_depth);
     }
 
     inline void CommandBuffer::SetScissor(Uint2 extent, Uint2 offset) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
         ISetScissor(extent, offset);
     }
 
-    inline void CommandBuffer::PushConstant(const DnmGL::GraphicsPipeline* pipeline, DnmGL::ShaderStageFlags pipeline_stage, uint32_t offset, uint32_t size, const void *ptr) {
-        DnmGLAssert(pipeline, "pipeline cannot be null")
-        DnmGLAssert(ptr, "ptr cannot be null")
-        DnmGLAssert(size + offset < 128, "size + offset must be < 128")
-
-        if (size == 0) return;
-
-        IPushConstant(pipeline, pipeline_stage, offset, size, ptr);
-    }
-
-    inline void CommandBuffer::PushConstant(const DnmGL::ComputePipeline* pipeline, uint32_t offset, uint32_t size, const void *ptr) {
-        DnmGLAssert(pipeline, "pipeline cannot be null")
-        DnmGLAssert(ptr, "ptr cannot be null")
-        DnmGLAssert(size + offset < 128, "size + offset must be < 128")
-
-        if (size == 0) return;
-
-        IPushConstant(pipeline, offset, size, ptr);
-    }
-
     inline void CommandBuffer::CopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.src_image, "src_image cannot be null")
         DnmGLAssert(desc.dst_buffer, "dst_buffer cannot be null")
 
@@ -1271,7 +1201,7 @@ namespace DnmGL {
 
     inline void CommandBuffer::CopyImageToImage(const DnmGL::ImageToImageCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.src_image, "src_image cannot be null")
         DnmGLAssert(desc.dst_image, "dst_image cannot be null")
 
@@ -1280,7 +1210,7 @@ namespace DnmGL {
 
     inline void CommandBuffer::CopyBufferToImage(const DnmGL::BufferToImageCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.dst_image, "dst_image cannot be null")
         DnmGLAssert(desc.src_buffer, "src_buffer cannot be null")
 
@@ -1289,7 +1219,7 @@ namespace DnmGL {
 
     inline void CommandBuffer::CopyBufferToBuffer(const DnmGL::BufferToBufferCopyDesc& desc) {
         //TODO: check bounds
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(desc.src_buffer, "src_buffer cannot be null")
         DnmGLAssert(desc.dst_buffer, "dst_buffer cannot be null")
 
@@ -1297,7 +1227,7 @@ namespace DnmGL {
     }
 
     inline void CommandBuffer::GenerateMipmaps(DnmGL::Image *image) {
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(image, "image cannot be null")
         if (image->GetDesc().mipmap_levels == 1) return;
 
@@ -1305,14 +1235,14 @@ namespace DnmGL {
     }
 
     inline void CommandBuffer::BindVertexBuffer(const DnmGL::Buffer *buffer, uint64_t offset) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
         DnmGLAssert(buffer, "buffer cannot be null")
         
         IBindVertexBuffer(buffer, offset);
     }
 
     inline void CommandBuffer::BindIndexBuffer(const DnmGL::Buffer *buffer, uint64_t offset, DnmGL::IndexType index_type) {
-        DnmGLAssert(active_pass == PassType::eRendering, "this function must be call in rendering pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
         DnmGLAssert(buffer, "buffer cannot be null")
 
         IBindIndexBuffer(buffer, offset, index_type);
@@ -1320,11 +1250,11 @@ namespace DnmGL {
     
     template <typename T> 
     inline void CommandBuffer::UploadData(DnmGL::Buffer *buffer, std::span<const T> data, uint32_t offset) {
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(buffer, "buffer cannot be null")
         if (data.empty()) return;
 
-        IUploadData(buffer, data.data(), data.size() * sizeof(T), offset);
+        IUploadData(buffer, data.data(), data.size()  *sizeof(T), offset);
     }
 
     template <typename T> 
@@ -1333,15 +1263,15 @@ namespace DnmGL {
                                             std::span<const T> data, 
                                             Uint3 copy_extent, 
                                             Uint3 copy_offset) {
-        DnmGLAssert(active_pass == PassType::eTransfer, "this function must be call in transfer pass")
+        DnmGLAssert(active_pass == CommandBufferPassType::eTransfer, "this function must be call in transfer pass")
         DnmGLAssert(image, "image cannot be null")
         if (data.empty()) return;
 
-        const auto copy_size = copy_extent.x * copy_extent.y * copy_extent.z * GetFormatSize(image->GetDesc().format);
-        if (data.size() * sizeof(T) < copy_size) [[unlikely]]
+        const auto copy_size = copy_extent.x  *copy_extent.y  *copy_extent.z  *GetFormatSize(image->GetDesc().format);
+        if (data.size()  *sizeof(T) < copy_size) [[unlikely]]
             context->Message(
                 std::format("data size must be equal or bigger than copy_extent pixel count; data.size(): {}, copy_extent pixel count {}",
-                data.size() * sizeof(T), copy_size), 
+                data.size()  *sizeof(T), copy_size), 
                 MessageType::eInvalidBehavior);
 
         IUploadData(image, subresource, data.data(), copy_extent, copy_offset);
@@ -1368,8 +1298,9 @@ namespace DnmGL {
             DnmGLAssert(win_handle.hwnd, "WinWindowHandle::hwnd cannot nullptr");
         }
         
-        DnmGLAssert(IsDepthFormat(desc.swapchain_settings.depth_buffer_format), 
-            "depth buffer format must be ImageFormat::eD16Norm or ImageFormat::eD32Float");
+        if (desc.swapchain_settings.depth_buffer_format != ImageFormat::eUndefined)
+            DnmGLAssert(IsDepthFormat(desc.swapchain_settings.depth_buffer_format), 
+                "depth buffer format must be ImageFormat::eD16Norm, ImageFormat::eD32Float");
         DnmGLAssert(desc.swapchain_settings.window_extent.x && desc.swapchain_settings.window_extent.y, 
                 "extent values must be bigger than zero")
 
@@ -1385,8 +1316,6 @@ namespace DnmGL {
         ISetSwapchainSettings(settings);
     }
 
-<<<<<<< Updated upstream
-=======
     template <typename T>
     constexpr T *Buffer::GetMappedPtr() const noexcept {
         DnmGLAssert(m_desc.memory_host_access != MemoryHostAccess::eNone, 
@@ -1400,7 +1329,6 @@ namespace DnmGL {
         if (m_desc.element_size < 4) m_desc.element_size = 4;
     }
 
->>>>>>> Stashed changes
     constexpr GraphicsPipeline::GraphicsPipeline(Context& ctx, const GraphicsPipelineDesc& desc) noexcept
     : RHIObject(ctx), m_desc(desc) {
         DnmGLAssert(m_desc.resource_manager, "resource manager can not be null")
@@ -1419,7 +1347,7 @@ namespace DnmGL {
             bool vertex_shader_is_there{};
             bool fragment_shader_is_there{};
 
-            for (const auto* shader : m_desc.resource_manager->GetShaders()) {
+            for (const auto *shader : m_desc.resource_manager->GetShaders()) {
                 vertex_shader_is_there |= m_desc.vertex_shader == shader;
                 fragment_shader_is_there |= m_desc.fragment_shader == shader;
             }
@@ -1427,6 +1355,15 @@ namespace DnmGL {
             DnmGLAssert(vertex_shader_is_there, "vertex shader must be in resource manager")
             DnmGLAssert(fragment_shader_is_there, "fragment shader must be in resource manager")
         }
+        const auto *vertex_entry_point = m_desc.vertex_shader->GetEntryPoint(m_desc.vertex_entry_point);
+        DnmGLAssert(vertex_entry_point, "vertex entry point is not in the vertex shader; entry point: {}", m_desc.vertex_entry_point);
+        DnmGLAssert(vertex_entry_point->shader_stage == ShaderStageBits::eVertex,
+            "vertex entry point, stage must be vertex; entry point: {}", m_desc.vertex_entry_point);
+
+        const auto *fragment_entry_point = m_desc.vertex_shader->GetEntryPoint(m_desc.fragment_entry_point);
+        DnmGLAssert(fragment_entry_point, "fragment entry point is not in the fragment shader; entry point: {}", m_desc.fragment_entry_point);
+        DnmGLAssert(fragment_entry_point->shader_stage == ShaderStageBits::eFragment,
+            "fragment entry point, stage must be fragment; entry point: {}", m_desc.fragment_entry_point);
     }
 
     constexpr ComputePipeline::ComputePipeline(Context& ctx, const ComputePipelineDesc& desc) noexcept
@@ -1437,11 +1374,15 @@ namespace DnmGL {
         {
             bool shader_is_there = false;
 
-            for (const auto* shader : m_desc.resource_manager->GetShaders())
+            for (const auto *shader : m_desc.resource_manager->GetShaders())
                 shader_is_there |= m_desc.shader == shader;
 
             DnmGLAssert(shader_is_there, "shader must be in resource manager")
         }
+        const auto *shader_entry_point = m_desc.shader->GetEntryPoint(m_desc.shader_entry_point);
+        DnmGLAssert(shader_entry_point, "entry point is not in the shader; entry point: {}", m_desc.shader_entry_point);
+        DnmGLAssert(shader_entry_point->shader_stage == ShaderStageBits::eCompute,
+            "entry point, stage must be compute; entry point: {}", m_desc.shader_entry_point);
     }
 
     constexpr Shader::Shader(Context& context, std::string_view filename) noexcept
@@ -1545,8 +1486,8 @@ namespace DnmGL {
 
         if (desc.framebuffer) DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == desc.framebuffer->GetDesc().depth_stencil_format, 
                             "framebuffer and pipeline formats must be same")
-        else DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == ImageFormat::eD16Norm, 
-                            "if using default framebuffer, depth stencil attachment format ImageFormat::eD16Norm")
+        else DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == context->GetSwapchainSettings().depth_buffer_format, 
+                            "if using default framebuffer, depth stencil attachment format must same with GetSwapchainSettings().depth_buffer_format")
     }
 
     inline void ResourceManager::SetReadonlyResource(std::span<const ResourceDesc> update_resource) {
@@ -1560,14 +1501,16 @@ namespace DnmGL {
                     DnmGLAssert(resource.buffer, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
                 DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eReadonlyResource), 
-                        "buffer dont has BufferUsageBits::eReadonlyResource; element index {}", i);
+                        "buffer don't has BufferUsageBits::eReadonlyResource; element index {}", i);
+                break;
             }
             else {
                 if (resource.buffer)
                     DnmGLAssert(resource.image, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.image, "resource is null; element index {}", i);
                 DnmGLAssert(resource.image->GetDesc().usage_flags.Has(ImageUsageBits::eReadonlyResource), 
-                            "image dont has ImageUsageBits::eReadonlyResource; element index {}", i);
+                            "image don't has ImageUsageBits::eReadonlyResource; element index {}", i);
+                break;
             }
         }
 
@@ -1585,21 +1528,21 @@ namespace DnmGL {
                     DnmGLAssert(resource.buffer, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
                 DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eWritebleResource), 
-                        "buffer dont has BufferUsageBits::eWritable; element index {}", i);
+                        "buffer don't has BufferUsageBits::eWritable; element index {}", i);
             }
             else {
                 if (resource.buffer)
                     DnmGLAssert(resource.image, "wrong resource type or both sources are provided; element index {}", i);
                 DnmGLAssert(resource.image, "resource is null; element index {}", i);
                 DnmGLAssert(resource.image->GetDesc().usage_flags.Has(ImageUsageBits::eWritebleResource), 
-                            "image dont has ImageUsageBits::eWritebleResource; element index {}", i);
+                            "image don't has ImageUsageBits::eWritebleResource; element index {}", i);
             }
         }
         
         ISetWritableResource(update_resource);   
     }
 
-    inline void ResourceManager::SetUniformBuffer(std::span<const UniformResourceDesc> update_resource) {
+    inline void ResourceManager::SetUniformResource(std::span<const UniformResourceDesc> update_resource) {
         for (const auto i : Counter(update_resource.size())) {
             const auto &resource = update_resource[i];
             const auto *binding = GetReadonlyResourcesBinding(resource.binding);
@@ -1607,13 +1550,14 @@ namespace DnmGL {
             DnmGLAssert(binding->resource_count > resource.array_element, "out of bounds; element index {}", i);
             DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
             DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eUniform), 
-                        "buffer dont has BufferUsageBits::eUniform; element index {}", i);
+                        "buffer don't has BufferUsageBits::eUniform; element index {}", i);
+            DnmGLAssert("condition", "fmt, ...");
         }
         
-        ISetUniformBuffer(update_resource);   
+        ISetUniformResource(update_resource);   
     }
 
-    inline void ResourceManager::SetSampler(std::span<const SamplerResourceDesc> update_resource) {
+    inline void ResourceManager::SetSamplerResource(std::span<const SamplerResourceDesc> update_resource) {
         for (const auto i : Counter(update_resource.size())) {
             const auto &resource = update_resource[i];
             const auto *binding = GetReadonlyResourcesBinding(resource.binding);
@@ -1622,7 +1566,7 @@ namespace DnmGL {
             DnmGLAssert(resource.sampler, "resource is null; element index {}", i);
         }
         
-        ISetSampler(update_resource);
+        ISetSamplerResource(update_resource);
     }
     
     constexpr const BindingInfo *ResourceManager::GetReadonlyResourcesBinding(uint32_t i) const noexcept {

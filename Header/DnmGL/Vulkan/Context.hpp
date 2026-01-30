@@ -40,17 +40,22 @@ namespace DnmGL::Vulkan {
     class FramebufferDynamicRendering;
 
     // images must be this layout except for copy or transfer commands  
-    inline vk::ImageLayout GetIdealImageLayout(DnmGL::ImageUsageFlags flags) {
-        if (flags == DnmGL::ImageUsageBits::eReadonlyResource)
+    constexpr vk::ImageLayout GetIdealImageLayout(DnmGL::ImageUsageFlags flags) {
+        // in BeginRendering color and depthStencil resources translated to color or depthStencil layout
+        if (flags.Has(DnmGL::ImageUsageBits::eReadonlyResource)) {
+            if (flags.Has(DnmGL::ImageUsageBits::eWritebleResource))
+                return vk::ImageLayout::eGeneral;
+            
             return vk::ImageLayout::eShaderReadOnlyOptimal;
-
-        else if (flags == DnmGL::ImageUsageBits::eColorAttachment
-        || flags == (DnmGL::ImageUsageBits::eColorAttachment | DnmGL::ImageUsageBits::eTransientAttachment))
-            return vk::ImageLayout::eColorAttachmentOptimal;
-
-        else if (flags == DnmGL::ImageUsageBits::eDepthStencilAttachment 
-        || flags == (DnmGL::ImageUsageBits::eDepthStencilAttachment | DnmGL::ImageUsageBits::eTransientAttachment))
+        }
+        
+        if (flags.Has(DnmGL::ImageUsageBits::eDepthStencilAttachment)) {
             return vk::ImageLayout::eDepthStencilAttachmentOptimal;
+        }
+
+        if (flags.Has(DnmGL::ImageUsageBits::eColorAttachment)) {
+            return vk::ImageLayout::eColorAttachmentOptimal;
+        }
 
         return vk::ImageLayout::eGeneral;
     }
@@ -245,7 +250,6 @@ namespace DnmGL::Vulkan {
         using InternalResource = std::variant<InternalBufferResource, InternalImageResource, InternalSamplerResource>;
         //just for new created images
         std::vector<InternalResource> defer_resource_update;
-        void ProcressImageLayoutTransfer();
         void ProcessResourceUpdates();
         void DeleteVulkanObjects();
         void CreateFramebuffers(vk::RenderPass renderpass, std::vector<vk::Framebuffer>& out_framebuffers) noexcept;

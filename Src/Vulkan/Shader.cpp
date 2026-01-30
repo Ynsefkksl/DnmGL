@@ -17,19 +17,6 @@ namespace DnmGL::Vulkan {
         return buffer;
     }
 
-    static constexpr DnmGL::ResourceType GetResourceType(const SpvReflectDescriptorBinding *binding) {
-        switch (binding->resource_type) {
-            case SPV_REFLECT_RESOURCE_FLAG_UNDEFINED: return {};
-            case SPV_REFLECT_RESOURCE_FLAG_SAMPLER: return DnmGL::ResourceType::eSampler;
-            case SPV_REFLECT_RESOURCE_FLAG_CBV: return DnmGL::ResourceType::eUniformBuffer;
-            case SPV_REFLECT_RESOURCE_FLAG_SRV: return (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
-                        ? DnmGL::ResourceType::eReadonlyBuffer : DnmGL::ResourceType::eReadonlyImage;
-            case SPV_REFLECT_RESOURCE_FLAG_UAV:
-                return (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
-                        ? DnmGL::ResourceType::eWritableBuffer : DnmGL::ResourceType::eWritableImage;
-        }
-    }
-
     static constexpr DnmGL::ShaderStageBits GetShaderStage(SpvReflectShaderStageFlagBits spv_stage) {
         switch (spv_stage) {
             case SPV_REFLECT_SHADER_STAGE_VERTEX_BIT: return ShaderStageBits::eVertex;
@@ -55,8 +42,6 @@ namespace DnmGL::Vulkan {
         //create shader reflection
         spv_reflect::ShaderModule reflection(LoadShaderFile(context->GetShaderPath(filename)));
         
-        m_vk_entry_points.reserve(reflection.GetEntryPointCount());
-
         {
             uint32_t count;
             reflection.EnumerateDescriptorBindings(&count, nullptr);
@@ -72,33 +57,19 @@ namespace DnmGL::Vulkan {
 
         for (const auto entry_index : Counter(reflection.GetEntryPointCount())) {
             const auto entry_point_name = static_cast<std::string_view>(reflection.GetEntryPointName(entry_index));
-            auto& vk_entry_point_info = m_vk_entry_points.emplace_back();
             auto& entry_point_info = m_entry_point_infos.emplace_back();
             
-            vk_entry_point_info.name = entry_point_name;
-            entry_point_info.name = entry_point_name;
-            vk_entry_point_info.stage = static_cast<vk::ShaderStageFlagBits>(reflection.GetEntryPointShaderStage(entry_index));
                                             //same bit with vulkan
             entry_point_info.shader_stage = GetShaderStage(reflection.GetEntryPointShaderStage(entry_index));
+            entry_point_info.name = entry_point_name;            
             DnmGLAssert(entry_point_info.shader_stage != ShaderStageBits::eNone, 
-                "unsupported shader stage; entry point: {}, stage: {}", entry_point_name, vk::to_string(vk_entry_point_info.stage));
+                "unsupported shader stage; entry point: {}", entry_point_name);
 
             // Readonly resource
             {
                 const auto *dst_set = reflection.GetEntryPointDescriptorSet(entry_point_name.data(), 0);
                 if (dst_set != nullptr) {
                     const auto bindings = std::span(dst_set->bindings, dst_set->binding_count);
-    
-                    vk_entry_point_info.readonly_resources.reserve(dst_set->binding_count);
-                    for (const auto *binding : bindings) {
-                        vk_entry_point_info.readonly_resources.emplace_back(VkBindingInfo{
-                            .binding = binding->binding,
-                            .descriptor_count = binding->count,
-                            .type = (vk::DescriptorType)binding->descriptor_type
-                        });
-                    }
-                    
-                    vk_entry_point_info.access_flags |= vk::AccessFlagBits::eShaderRead;
     
                     //DnmGL reflection
                     {
@@ -107,7 +78,8 @@ namespace DnmGL::Vulkan {
                             entry_point_info.readonly_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
+                                    ? DnmGL::ResourceType::eReadonlyBuffer : DnmGL::ResourceType::eReadonlyImage
                             );
                         }
                     }
@@ -120,17 +92,6 @@ namespace DnmGL::Vulkan {
                 if (dst_set != nullptr) {
                     const auto bindings = std::span(dst_set->bindings, dst_set->binding_count);
 
-                    vk_entry_point_info.writable_resources.reserve(dst_set->binding_count);
-                    for (const auto *binding : bindings) {
-                        vk_entry_point_info.writable_resources.emplace_back(VkBindingInfo{
-                            .binding = binding->binding,
-                            .descriptor_count = binding->count,
-                            .type = (vk::DescriptorType)binding->descriptor_type
-                        });
-                    }
-                    
-                    vk_entry_point_info.access_flags |= vk::AccessFlagBits::eShaderWrite;
-
                     //DnmGL reflection
                     {
                         entry_point_info.writable_resources.reserve(dst_set->binding_count);
@@ -138,7 +99,8 @@ namespace DnmGL::Vulkan {
                             entry_point_info.writable_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                (binding->descriptor_type == SpvReflectDescriptorType::SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) 
+                                    ? DnmGL::ResourceType::eWritableBuffer : DnmGL::ResourceType::eWritableImage
                             );
                         }
                     }
@@ -151,17 +113,6 @@ namespace DnmGL::Vulkan {
                 if (dst_set != nullptr) {
                     const auto bindings = std::span(dst_set->bindings, dst_set->binding_count);
 
-                    vk_entry_point_info.uniform_buffer_resources.reserve(dst_set->binding_count);
-                    for (const auto *binding : bindings) {
-                        vk_entry_point_info.uniform_buffer_resources.emplace_back(VkBindingInfo{
-                            .binding = binding->binding,
-                            .descriptor_count = binding->count,
-                            .type = vk::DescriptorType::eUniformBuffer
-                        });
-                    }
-
-                    vk_entry_point_info.access_flags |= vk::AccessFlagBits::eUniformRead;
-
                     //DnmGL reflection
                     {
                         entry_point_info.uniform_buffer_resources.reserve(dst_set->binding_count);
@@ -169,7 +120,7 @@ namespace DnmGL::Vulkan {
                             entry_point_info.uniform_buffer_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                DnmGL::ResourceType::eUniformBuffer
                             );
                         }
                     }
@@ -182,15 +133,6 @@ namespace DnmGL::Vulkan {
                 if (dst_set != nullptr) {
                     const auto bindings = std::span(dst_set->bindings, dst_set->binding_count);
 
-                    vk_entry_point_info.sampler_resources.reserve(dst_set->binding_count);
-                    for (const auto *binding : bindings) {
-                        vk_entry_point_info.sampler_resources.emplace_back(VkBindingInfo{
-                            .binding = binding->binding,
-                            .descriptor_count = binding->count,
-                            .type = vk::DescriptorType::eSampler
-                        });
-                    }
-
                     //DnmGL reflection
                     {
                         entry_point_info.sampler_resources.reserve(dst_set->binding_count);
@@ -198,39 +140,14 @@ namespace DnmGL::Vulkan {
                             entry_point_info.sampler_resources.emplace_back(
                                 binding->binding,
                                 binding->count,
-                                GetResourceType(binding)
+                                DnmGL::ResourceType::eSampler
                             );
                         }
                     }
                 }
             }
-
-            //push constants
-            {
-                uint32_t count;
-                reflection.EnumerateEntryPointPushConstantBlocks(entry_point_name.data(), &count, nullptr);
-            
-                std::vector<SpvReflectBlockVariable *> pushConstants(count);
-                reflection.EnumerateEntryPointPushConstantBlocks(entry_point_name.data(), &count, pushConstants.data());
-    
-                if (count != 0) {
-                    vk_entry_point_info.push_constant = PushConstantInfo {
-                    pushConstants[0]->size,
-                    pushConstants[0]->offset,
-                    };
-
-                    entry_point_info.push_constant = PushConstantInfo {
-                    pushConstants[0]->size,
-                    pushConstants[0]->offset,
-                    };
-
-                    DnmGLAssert(
-                        pushConstants[0]->offset + pushConstants[0]->size < 128, 
-                        "push constant offset + size should be small 128 byte")
-                }
-            }
         }
-        
+
         //create shader module
         m_shader_module = VulkanContext->GetDevice().createShaderModule(
             vk::ShaderModuleCreateInfo{}
