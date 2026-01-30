@@ -19,6 +19,20 @@ set(Sources)
 set(Libraries)
 set(Includes)
 
+
+function(copy_dlls_to_runtime target dll_dir)
+    file(GLOB DLLS "${dll_dir}/*.dll")
+
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${DLLS}
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    )
+endfunction()
+
+list(APPEND Includes 
+        ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Slang/include)
+
 if (Vulkan)
     find_package(Vulkan REQUIRED)
     find_package(VulkanMemoryAllocator CONFIG REQUIRED)
@@ -77,42 +91,26 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_compile_definitions(${PROJECT_NAME} PRIVATE DNMGL_EXPORTS)
 
 if(Vulkan)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE Vulkan_Backend)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DnmGL_Vulkan_Backend)
 endif(Vulkan)
 
 if(D3D12)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE D3D12_Backend)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DnmGL_D3D12_Backend)
 endif(D3D12)
 
-# find dxil.dll and copy ${CMAKE_BINARY_DIR}/bin
 find_file(DXIL_DLL 
     NAMES dxil.dll 
     PATHS ${CMAKE_PREFIX_PATH}/bin ${CMAKE_PREFIX_PATH}/tools/directxshadercompiler
     NO_DEFAULT_PATH
 )
 
-find_file(DXCOMPILER_DLL 
-    NAMES dxcompiler.dll 
-    PATHS ${CMAKE_PREFIX_PATH}/bin ${CMAKE_PREFIX_PATH}/tools/directxshadercompiler
-    NO_DEFAULT_PATH
+list(APPEND DLLS ${DXIL_DLL})
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${DLLS}
+    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
-
-if(DXIL_DLL AND DXCOMPILER_DLL)
-    message(STATUS "Found DXC Binaries for ${PROJECT_NAME}:")
-    message(STATUS "  DXIL: ${DXIL_DLL}")
-    message(STATUS "  DXC:  ${DXCOMPILER_DLL}")
-
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${DXIL_DLL}"
-            "${DXCOMPILER_DLL}"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-        COMMENT "Copying DXC and DXIL binaries to output directory..."
-    )
-else()
-    message(WARNING "dxil.dll or dxcompiler.dll could not be found in vcpkg directory!")
-endif()
-# find dxil.dll and copy ${CMAKE_BINARY_DIR}/bin
 
 if(Examples)
     add_subdirectory(Examples)

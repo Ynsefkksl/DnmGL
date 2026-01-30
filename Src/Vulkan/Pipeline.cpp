@@ -265,6 +265,8 @@ namespace DnmGL::Vulkan {
                             .setDepthWriteEnable(m_desc.depth_write)
                             .setDepthCompareOp(static_cast<vk::CompareOp>(m_desc.depth_test_compare_op))
                             .setStencilTestEnable(m_desc.stencil_test)
+                            .setBack(vk::StencilOpState{})
+                            .setFront(vk::StencilOpState{})
                             ;
 
         std::vector<vk::PipelineColorBlendAttachmentState> blend_state{};
