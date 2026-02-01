@@ -46,8 +46,6 @@ namespace DnmGL::Vulkan {
         const auto device = VulkanContext->GetDevice();
 
         {
-            std::vector<vk::PushConstantRange> push_constants{};
-            
             vk::DescriptorSetLayout dst_set_layouts[4];
             const EntryPointInfo* entry_points[2] = {vertex_entry_point, frag_entry_point};
 
@@ -369,9 +367,24 @@ namespace DnmGL::Vulkan {
 
             m_access_flags |= GetAccessFlagsForEntryPoint(*shader_entry_point);
         }
-
+            
         const auto *typed_resource_manager = static_cast<const Vulkan::ResourceManager *>(m_desc.resource_manager);
         const auto device = VulkanContext->GetDevice();
+
+        {
+            vk::DescriptorSetLayout dst_set_layouts[4];
+            const EntryPointInfo* entry_points[1] = {shader_entry_point};
+
+            typed_resource_manager->FillDescriptorSets(m_dst_sets, entry_points);
+            typed_resource_manager->FillDescriptorSetLayouts(dst_set_layouts, entry_points);
+
+            vk::PipelineLayoutCreateInfo create_info{};
+            create_info.setSetLayouts(dst_set_layouts)
+                        ;
+
+            m_pipeline_layout = device.createPipelineLayout(create_info);
+        }
+
 
         vk::PipelineShaderStageCreateInfo stage_info{};
         stage_info.setStage(vk::ShaderStageFlagBits::eCompute)
