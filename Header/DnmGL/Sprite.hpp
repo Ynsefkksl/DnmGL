@@ -156,10 +156,8 @@ namespace DnmGL {
 
         [[nodiscard]] auto* GetSpriteBuffer() const { return m_sprite_buffer.get(); }
         [[nodiscard]] auto* GetGraphicsPipeline() const  { return m_graphics_pipeline.get(); }
-        [[nodiscard]] auto* GetResourceManager() const  { return m_resource_manager.get(); }
-        [[nodiscard]] auto* GetVertexShader() const { return m_shader.get(); }
-        [[nodiscard]] auto* GetFragmentShader() const { return m_fragment_shader.get(); }
         [[nodiscard]] auto* GetSpriteBufferMappedPtr() const noexcept { return m_sprite_buffer->GetMappedPtr<SpriteData>(); }
+        [[nodiscard]] auto GetShader() const { return std::string_view(m_shader); }
         [[nodiscard]] auto* GetContext() const { return m_sprite_buffer->context; }
         [[nodiscard]] auto* GetCamera() const { return m_camera_ptr; }
         void SetCamera(SpriteCamera *camera) { m_camera_ptr = camera; }
@@ -187,9 +185,7 @@ namespace DnmGL {
         std::vector<DnmGL::SpriteHandle> m_handles{};
 
         DnmGL::GraphicsPipeline::Ptr m_graphics_pipeline{};
-        DnmGL::ResourceManager::Ptr m_resource_manager{};
-        DnmGL::Shader::Ptr m_shader{};
-        DnmGL::Shader::Ptr m_fragment_shader{};
+        std::string m_shader;
 
         DnmGL::Buffer::Ptr m_sprite_buffer{};
         DnmGL::Buffer::Ptr m_camera_buffer{};
@@ -223,75 +219,59 @@ namespace DnmGL {
         }
 
         {
-            m_shader = desc.context->CreateShader("Sprite");
+            m_shader = "Sprite";
 
-            const DnmGL::Shader* shaders[1] = {m_shader.get()};
-            m_resource_manager = desc.context->CreateResourceManager(
-                shaders
-            );
+            const ImageFormat image_format[1] = { ImageFormat::eRGBA8Norm };
+
+            DepthStencilDesc depth_stencil_desc{};
+            depth_stencil_desc.depth_stencil_format = GetContext()->GetSwapchainSettings().depth_buffer_format;
+            depth_stencil_desc.depth_test_compare_op = DnmGL::CompareOp::eLessOrEqual; 
+            depth_stencil_desc.depth_test = !desc.color_blend; 
+            depth_stencil_desc.depth_write = !desc.color_blend;
+
+            InputAssemblyDesc input_assembly_desc{};
+            input_assembly_desc.topology = DnmGL::PrimitiveTopology::eTriangleStrip;
+
+            ResterizerDesc resterizer_desc{};
+            resterizer_desc.color_attachment_formats = image_format;
+            resterizer_desc.cull_mode = DnmGL::CullMode::eNone; 
+            resterizer_desc.msaa = desc.msaa; 
+            resterizer_desc.color_blend = desc.color_blend; 
 
             GraphicsPipelineDesc pipeline_desc{};
-            pipeline_desc.color_attachment_formats =  { ImageFormat::eRGBA8Norm };
-            pipeline_desc.depth_stencil_format = GetContext()->GetSwapchainSettings().depth_buffer_format;
-            pipeline_desc.vertex_entry_point = "VertMain"; 
-            pipeline_desc.vertex_shader = m_shader.get(); 
-            pipeline_desc.fragment_entry_point = "FragMain"; 
-            pipeline_desc.fragment_shader = m_shader.get(); 
-            pipeline_desc.resource_manager = m_resource_manager.get(); 
-            pipeline_desc.depth_test_compare_op = DnmGL::CompareOp::eLessOrEqual; 
-            pipeline_desc.cull_mode = DnmGL::CullMode::eNone; 
-            pipeline_desc.topology = DnmGL::PrimitiveTopology::eTriangleStrip; 
-            pipeline_desc.msaa = desc.msaa; 
-            pipeline_desc.depth_test = !desc.color_blend; 
-            pipeline_desc.depth_write = !desc.color_blend; 
-            pipeline_desc.color_blend = desc.color_blend; 
+            pipeline_desc.shader_name = m_shader;
+            pipeline_desc.resterizer_desc = &resterizer_desc;
+            pipeline_desc.depth_stencil_desc = &depth_stencil_desc;
+            pipeline_desc.input_assembly_desc = &input_assembly_desc;
 
             m_graphics_pipeline = desc.context->CreateGraphicsPipeline(pipeline_desc);
         }
 
         {
-            const ResourceDesc resource_desc[] = {
-                {
-                    .image = desc.atlas_texture ? desc.atlas_texture : GetContext()->GetPlaceholderImage(),
-                    .subresource = desc.atlas_texture_subresource ? *desc.atlas_texture_subresource : ImageSubresource{},
-                    .binding = 1,
-                    .array_element = 0,
-                }
-            };
-            m_resource_manager->SetReadonlyResource(resource_desc);
+            m_graphics_pipeline->SetResource("atlas_texture", ImageResourceDesc{
+                .image = desc.atlas_texture ? desc.atlas_texture : GetContext()->GetPlaceholderImage(),
+                .subresource = desc.atlas_texture_subresource ? *desc.atlas_texture_subresource : ImageSubresource{},
+            }, 0);
         }
+
         {
-            const SamplerResourceDesc resource_desc[] = {
-                {
-                    .sampler = desc.sampler ? desc.sampler : GetContext()->GetPlaceholderSampler(),
-                    .binding = 0,
-                    .array_element = 0,
-                }
-            };
-            m_resource_manager->SetSamplerResource(resource_desc);
+            m_graphics_pipeline->SetResource("atlas_sampler", 
+                desc.sampler ? desc.sampler : GetContext()->GetPlaceholderSampler(), 0);
         }
+
         {
-            const ResourceDesc resource_desc[] = {
-                {
-                    .buffer = m_sprite_buffer.get(),
-                    .element_count = m_sprite_buffer->GetDesc().element_count,
-                    .binding = 0,
-                    .array_element = 0,
-                },
-            };
-            m_resource_manager->SetReadonlyResource(resource_desc);
+            m_graphics_pipeline->SetResource("sprite_buffer", BufferResourceDesc{
+                m_sprite_buffer.get(),
+                0,
+                m_sprite_buffer->GetDesc().element_count
+            }, 0);
         }
+
         {
-            const UniformResourceDesc resource_desc[] = {
-                {
-                    .buffer = m_camera_buffer.get(),
-                    .offset = 0,
-                    .size = m_camera_buffer->GetDesc().element_size,
-                    .binding = 0,
-                    .array_element = 0,
-                },
-            };
-            m_resource_manager->SetUniformResource(resource_desc);
+            m_graphics_pipeline->SetResource("camera_buffer", BufferResourceDesc{
+                m_camera_buffer.get(),
+                0, 1
+            }, 0);
         }
     }
 
@@ -319,15 +299,11 @@ namespace DnmGL {
 
             m_sprite_buffer.swap(new_buffer);
 
-            const ResourceDesc sprite_buffer_resources[] = {
-                {
-                    .buffer = m_sprite_buffer.get(),
-                    .element_count = m_sprite_buffer->GetDesc().element_count,
-                    .binding = 0,
-                    .array_element = 0,
-                },
-            };
-            m_resource_manager->SetReadonlyResource(sprite_buffer_resources);
+            m_graphics_pipeline->SetResource("sprite_buffer", BufferResourceDesc{
+                m_sprite_buffer.get(),
+                0,
+                m_sprite_buffer->GetDesc().element_count
+            }, 0);
         }
     }
 

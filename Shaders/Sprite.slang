@@ -38,7 +38,12 @@ struct Sprite {
 
 ReadonlyBuffer<Sprite> sprite_buffer;
 
-UniformBuffer pc {
+[BufferDesc(
+    MemoryType::eDeviceMemory, 
+    MemoryHostAccess::eWrite, 
+    BufferUsageBits::eUniform,
+    1)]
+UniformBuffer camera_buffer {
     float4x4 proj_mtx;
     float4 camera_pos;
 }

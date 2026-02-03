@@ -9,18 +9,44 @@ namespace DnmGL {
     constexpr uint32_t dxil_target_index = 1;
     constexpr uint32_t metal_target_index = 2;
 
+    static constexpr void IsValidShaderData(const ShaderData &shader_data) {
+        //TODO: find error description
+        if (shader_data.reflection.entry_points.size() != shader_data.dxil_codes.size())
+            throw std::runtime_error("shader unvalid");
+
+        bool has_fragment_shader = false;
+        bool has_vertex_shader = false;
+        bool has_compute_shader = false;
+
+        for (const auto &entry_point : shader_data.reflection.entry_points | std::ranges::views::values) {
+            //TODO: find error description
+            if (!shader_data.dxil_codes.contains(entry_point.name)) throw std::runtime_error("shader unvalid");
+
+            switch (entry_point.shader_stage) {
+                case ShaderStageBits::eNone: throw std::runtime_error("entry point dosent have shader stage, entry point: " + entry_point.name);
+                case ShaderStageBits::eVertex: has_vertex_shader = true; break;
+                case ShaderStageBits::eFragment: has_fragment_shader = true; break;
+                case ShaderStageBits::eCompute: has_compute_shader = true; break;
+            }
+        }
+
+        if (!((has_fragment_shader && has_vertex_shader) && !has_compute_shader)) {
+            throw std::runtime_error("shader file must contain either exactly one vertex and one fragment shader, or only compute shaders");
+        }
+    }
+
     //TODO: fix the filesystem::path string_view confusion
     //TODO: make ShaderCompiler interface
-    //TODO: this might be RHIObject
+    //TODO: this must be RHIObject
     class ShaderCompiler {
     public:
         ShaderCompiler();
 
-        const ShaderData &GetShaderData(std::string_view);
+        const ShaderData &GetShaderData(const std::filesystem::path &);
 
-        static ShaderData ReadShaderDataFromFile(std::string_view shader);
-        static void WriteShaderDataToFile(std::string_view shader, const ShaderData &shader_data);
-        ShaderData GetShaderDataFromShader(const std::filesystem::path &path);
+        static ShaderData ReadShaderDataFromFile(const std::filesystem::path &path);
+        static void WriteShaderDataToFile(const std::filesystem::path &path, const ShaderData &shader_data);
+        ShaderData &GetShaderDataFromShader(const std::filesystem::path &path);
     private:
         static std::string ReadShaderFile(const std::filesystem::path &path);
 
@@ -36,13 +62,26 @@ namespace DnmGL {
     
     //TODO: fix return values
     bool Context::CompileShader(std::string_view shader_name) const noexcept {
-        shader_compiler->GetShaderDataFromShader(GetShaderPath(shader_name));
-        return true;
+        try {
+            shader_compiler->GetShaderDataFromShader(GetShaderPath(shader_name));
+            return true;
+        } catch (const std::exception &e) {
+            Message(std::format("compiling error: {}", e.what()), MessageType::eShaderCompilationFailed);
+            return false;
+        }
     }
 
     bool Context::WriteShaderData(std::string_view shader_name) const noexcept {
         shader_compiler->WriteShaderDataToFile(shader_name, shader_compiler->GetShaderData(shader_name));
         return true;
+    }
+
+    std::expected<const ShaderData *, std::string> Context::ReadOrCompileShader(std::string_view shader_name) const noexcept {
+        try {
+            return &shader_compiler->GetShaderData(GetShaderPath(shader_name));
+        } catch (const std::exception &e) {
+            return std::unexpected(e.what());
+        }
     }
 
     void Context::DestroyShaderCompiler() {
@@ -99,18 +138,21 @@ namespace DnmGL {
         };
     }
 
-    static constexpr std::vector<Resource> GetResources(slang::ProgramLayout *spirv_layout, slang::ProgramLayout *dxil_layout, slang::ProgramLayout *metal_layout) {
-        std::vector<Resource> resources;
+    static constexpr std::unordered_map<std::string, Resource> GetResources(slang::ProgramLayout *spirv_layout, slang::ProgramLayout *dxil_layout, slang::ProgramLayout *metal_layout) {
+        std::unordered_map<std::string, Resource> resources;
         resources.reserve(spirv_layout->getParameterCount());
         for (const auto i : Counter(spirv_layout->getParameterCount())) {
             auto *var_layout = spirv_layout->getParameterByIndex(i);
-            resources.emplace_back(
-                SlangToDnmGL(var_layout->getTypeLayout()->getBindingRangeType(0)),
-                spirv_layout->getParameterByIndex(i)->getBindingIndex(),
-                dxil_layout->getParameterByIndex(i)->getBindingIndex(),
-                metal_layout->getParameterByIndex(i)->getBindingIndex(),
-                static_cast<uint32_t>(var_layout->getTypeLayout()->getBindingRangeBindingCount(0)),
-                var_layout->getName()
+            resources.emplace(
+                var_layout->getName(),
+                Resource {
+                    SlangToDnmGL(var_layout->getTypeLayout()->getBindingRangeType(0)),
+                    spirv_layout->getParameterByIndex(i)->getBindingIndex(),
+                    dxil_layout->getParameterByIndex(i)->getBindingIndex(),
+                    metal_layout->getParameterByIndex(i)->getBindingIndex(),
+                    static_cast<uint32_t>(var_layout->getTypeLayout()->getBindingRangeBindingCount(0)),
+                    var_layout->getName()
+                }
             );
         }
 
@@ -124,15 +166,18 @@ namespace DnmGL {
         };
     }
 
-    static constexpr std::vector<EntryPoint> GetEntryPoints(slang::ProgramLayout *layout) {
-        std::vector<EntryPoint> entry_points;
+    static constexpr std::unordered_map<std::string, EntryPoint> GetEntryPoints(slang::ProgramLayout *layout) {
+        std::unordered_map<std::string, EntryPoint> entry_points;
         entry_points.reserve(layout->getEntryPointCount());
 
         for (const auto i : Counter(layout->getEntryPointCount())) {
             auto *entry_point_refl = layout->getEntryPointByIndex(i); 
-            entry_points.emplace_back(
-                SlangToDnmGL(entry_point_refl->getStage()),
-                entry_point_refl->getName()
+            entry_points.emplace(
+                entry_point_refl->getName(),
+                EntryPoint{
+                    SlangToDnmGL(entry_point_refl->getStage()),
+                    entry_point_refl->getName()
+                }
             );
         }
         return entry_points;
@@ -216,9 +261,11 @@ namespace DnmGL {
             GetShaderCodeForMetal(linked_program),
         };
 
-        for (uint32_t i{}; auto &[_, name] : shader_data.reflection.entry_points)
+        for (uint32_t i{}; auto &[name, _] : shader_data.reflection.entry_points)
             shader_data.dxil_codes.emplace(name, GetShaderCodeForDxil(linked_program, i++));
         
+        IsValidShaderData(shader_data);
+
         return shader_data;
     }
 
@@ -252,18 +299,20 @@ namespace DnmGL {
 
     std::string ShaderCompiler::ReadShaderFile(const std::filesystem::path &path) {
         std::ifstream file(path);
-        DnmGLAssert(bool(file), "there is no {}", path.string());
 
         return { std::istreambuf_iterator<char>(file),
                 std::istreambuf_iterator<char>() };
     }
 
-    ShaderData ShaderCompiler::GetShaderDataFromShader(const std::filesystem::path &path) {
+    ShaderData &ShaderCompiler::GetShaderDataFromShader(const std::filesystem::path &path) {
+        if (!std::filesystem::exists(path)) throw std::runtime_error("file not found, file path: " + path.string());
+
         Slang::ComPtr<slang::IModule> slang_module;
         {
             Slang::ComPtr<slang::IBlob> diagnostics_blob;
+
             slang_module = m_session->loadModuleFromSourceString(
-                "Sprite", 
+                path.filename().stem().string().c_str(), 
                 path.string().c_str(), 
                 ReadShaderFile(path).c_str(), 
                 diagnostics_blob.writeRef());
@@ -310,18 +359,17 @@ namespace DnmGL {
             }
         }
 
-        return GetShaderDataFromProgram(linked_program);
+        return m_shaders.emplace(path.string(), GetShaderDataFromProgram(linked_program)).first->second;
     }
 
-    const ShaderData &ShaderCompiler::GetShaderData(std::string_view filename) {
-        if (const auto string_filename = std::string(filename); 
-            m_shaders.contains(string_filename))
-            return m_shaders.at(string_filename);
+    const ShaderData &ShaderCompiler::GetShaderData(const std::filesystem::path &filename) {
+        if (m_shaders.contains(filename.string()))
+            return m_shaders.at(filename.string());
         
-        return m_shaders.emplace(filename, GetShaderDataFromShader(filename)).first->second;
+        return m_shaders.emplace(filename.string(), GetShaderDataFromShader(filename.string())).first->second;
     }
 
-    ShaderData ShaderCompiler::ReadShaderDataFromFile(std::string_view path) {
+    ShaderData ShaderCompiler::ReadShaderDataFromFile(const std::filesystem::path &path) {
         const auto get_string_in_file = [](std::ifstream &file) noexcept {
             std::string string{};
             char c;
@@ -331,9 +379,8 @@ namespace DnmGL {
             
             return string;
         };
-
         
-        std::ifstream file(std::filesystem::path(path), std::ios::in | std::ios::binary);
+        std::ifstream file(path, std::ios::in | std::ios::binary);
         ShaderData out{};
 
         // Get shader type
@@ -345,9 +392,10 @@ namespace DnmGL {
         {
             uint32_t resource_count;
             file.read(reinterpret_cast<char *>(&resource_count), sizeof(uint32_t));
-            out.reflection.resources.resize(resource_count);
+            out.reflection.resources.reserve(resource_count);
 
-            for (auto &res : out.reflection.resources) {
+            for (auto _ : Counter(resource_count)) {
+                Resource res;
                 file.read(reinterpret_cast<char *>(&res.type), sizeof(uint32_t));
                 file.read(reinterpret_cast<char *>(&res.spirv_index), sizeof(uint32_t));
                 file.read(reinterpret_cast<char *>(&res.dxil_index), sizeof(uint32_t));
@@ -355,6 +403,7 @@ namespace DnmGL {
                 file.read(reinterpret_cast<char *>(&res.resource_count), sizeof(uint32_t));
 
                 res.name = get_string_in_file(file);
+                out.reflection.resources.emplace(res.name, res);
             }
         }
 
@@ -362,11 +411,14 @@ namespace DnmGL {
         {
             uint32_t entry_point_count;
             file.read(reinterpret_cast<char *>(&entry_point_count), sizeof(uint32_t));
-            out.reflection.entry_points.resize(entry_point_count);
+            out.reflection.entry_points.reserve(entry_point_count);
 
-            for (auto &entry_point : out.reflection.entry_points) {
+            for (auto _ : Counter(entry_point_count)) {
+                EntryPoint entry_point;
                 file.read(reinterpret_cast<char *>(&entry_point.shader_stage), sizeof(uint32_t));
                 entry_point.name = get_string_in_file(file);
+
+                out.reflection.entry_points.emplace(entry_point.name, entry_point);
             }
         }
 
@@ -380,14 +432,14 @@ namespace DnmGL {
 
         // Get dxil codes
         {
-            for (const auto &entry_point : out.reflection.entry_points) {
+            for (const auto &[name, _] : out.reflection.entry_points) {
                 uint32_t shader_size;
                 file.read((char *)&shader_size, sizeof(uint32_t));
 
                 std::vector<char> dxil_code(shader_size);
                 file.read(dxil_code.data(), shader_size);
 
-                out.dxil_codes.emplace(entry_point.name, std::move(dxil_code));
+                out.dxil_codes.emplace(name, std::move(dxil_code));
             }
         }
 
@@ -403,8 +455,8 @@ namespace DnmGL {
         return out;
     }
 
-    void ShaderCompiler::WriteShaderDataToFile(std::string_view path, const ShaderData &shader_data) {
-        std::ofstream file(std::filesystem::path(path), std::ios::binary | std::ios::trunc);
+    void ShaderCompiler::WriteShaderDataToFile(const std::filesystem::path &path, const ShaderData &shader_data) {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
 
         // shader type
         {
@@ -417,7 +469,7 @@ namespace DnmGL {
         {
             const uint32_t resource_count = shader_data.reflection.resources.size();
             file.write(reinterpret_cast<const char *>(&resource_count), sizeof(uint32_t));
-            for (const auto &res : shader_data.reflection.resources) {
+            for (const auto &[_, res] : shader_data.reflection.resources) {
                 //type is uint8_t
                 const uint32_t buff = static_cast<uint32_t>(res.type);
                 file.write(reinterpret_cast<const char *>(&res.type), sizeof(uint32_t));
@@ -434,7 +486,7 @@ namespace DnmGL {
         {
             const uint32_t entry_point_count = shader_data.reflection.entry_points.size();
             file.write(reinterpret_cast<const char *>(&entry_point_count), sizeof(uint32_t));
-            for (const auto &entry_point : shader_data.reflection.entry_points) {
+            for (const auto &[_, entry_point] : shader_data.reflection.entry_points) {
                 //type is uint8_t
                 const uint32_t buff = static_cast<uint32_t>(entry_point.shader_stage);
                 file.write(reinterpret_cast<const char *>(&buff), sizeof(uint32_t));
@@ -453,11 +505,11 @@ namespace DnmGL {
 
         // dxil codes
         {
-            for (const auto i : shader_data.reflection.entry_points) {
-                const auto code_size = shader_data.dxil_codes.at(i.name).size();
+            for (const auto [name, _] : shader_data.reflection.entry_points) {
+                const auto code_size = shader_data.dxil_codes.at(name).size();
 
                 file.write(reinterpret_cast<const char *>(&code_size), sizeof(uint32_t));
-                file.write(shader_data.dxil_codes.at(i.name).data(), code_size);
+                file.write(shader_data.dxil_codes.at(name).data(), code_size);
             }
         }
 

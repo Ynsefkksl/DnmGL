@@ -15,24 +15,30 @@ namespace DnmGL::Vulkan {
         command_buffer = VulkanContext->GetDevice().allocateCommandBuffers(alloc_descs)[0];
     }
     
-    void CommandBuffer::IBindPipeline(const DnmGL::ComputePipeline* pipeline) {
+    void CommandBuffer::IComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x, uint16_t y, uint16_t z) {
         const auto* typed_pipeline = static_cast<const Vulkan::ComputePipeline *>(pipeline);
 
-        BarrierForPipeline(typed_pipeline->GetPipelineStageFlags(), typed_pipeline->GetAccessFlags());
+        //TODO: make better barrier
+        BarrierForPipeline(
+            vk::PipelineStageFlagBits::eComputeShader, 
+            vk::AccessFlagBits::eUniformRead | 
+            vk::AccessFlagBits::eShaderWrite | 
+            vk::AccessFlagBits::eShaderRead);
 
-        DeferLayoutTranslation();
-
-        command_buffer.bindDescriptorSets(
-                        vk::PipelineBindPoint::eCompute, 
-                        typed_pipeline->GetPipelineLayout(),
-                        0,
-                        typed_pipeline->GetDstSets(),
-                        {});
+        if (pipeline != active_compute_pipeline) {
+            command_buffer.bindDescriptorSets(
+                            vk::PipelineBindPoint::eCompute, 
+                            typed_pipeline->GetPipelineLayout(),
+                            0,
+                            typed_pipeline->GetDstSet(),
+                            {});
+        }
 
         command_buffer.bindPipeline(
             vk::PipelineBindPoint::eCompute, 
-            typed_pipeline->GetPipeline()
+            typed_pipeline->GetPipeline(std::string(kernel))
         );
+
         prev_operation = CommandType::ePipeline;
     }
 
@@ -562,7 +568,7 @@ namespace DnmGL::Vulkan {
 
     void CommandBuffer::IUploadData(
         DnmGL::Image *image, 
-        const ImageSubresource& subresource, 
+        ImageSubresource subresource, 
         const void* data, 
         Uint3 copy_extent, 
         Uint3 copy_offset) {
@@ -809,13 +815,17 @@ namespace DnmGL::Vulkan {
         const auto [vk_renderpass, vk_pipeline] = typed_pipeline->GetOrCreateAttachmentOpVariant(
                                                                         desc.attachment_ops, !desc.framebuffer);
 
-        BarrierForPipeline(typed_pipeline->GetPipelineStageFlags(), typed_pipeline->GetAccessFlags());
+        BarrierForPipeline(
+            vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eFragmentShader, 
+            vk::AccessFlagBits::eUniformRead | 
+            vk::AccessFlagBits::eShaderWrite | 
+            vk::AccessFlagBits::eShaderRead);
 
         command_buffer.bindDescriptorSets(
                         vk::PipelineBindPoint::eGraphics, 
                         typed_pipeline->GetPipelineLayout(),
                         0,
-                        typed_pipeline->GetDstSets(),
+                        typed_pipeline->GetDstSet(),
                         {});
 
         command_buffer.bindPipeline(
@@ -856,13 +866,18 @@ namespace DnmGL::Vulkan {
     void CommandBuffer::BeginRenderingDynamicRendering(const BeginRenderingDesc& desc) {
         auto* typed_pipeline = static_cast<Vulkan::GraphicsPipelineDynamicRendering *>(desc.pipeline);
         const auto vk_pipeline = typed_pipeline->GetPipeline();
-        BarrierForPipeline(typed_pipeline->GetPipelineStageFlags(), typed_pipeline->GetAccessFlags());
+
+        BarrierForPipeline(
+            vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eFragmentShader, 
+            vk::AccessFlagBits::eUniformRead | 
+            vk::AccessFlagBits::eShaderWrite | 
+            vk::AccessFlagBits::eShaderRead);
 
         command_buffer.bindDescriptorSets(
                         vk::PipelineBindPoint::eGraphics, 
                         typed_pipeline->GetPipelineLayout(),
                         0,
-                        typed_pipeline->GetDstSets(),
+                        typed_pipeline->GetDstSet(),
                         {});
 
         command_buffer.bindPipeline(

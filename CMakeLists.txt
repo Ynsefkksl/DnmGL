@@ -14,10 +14,13 @@ project("DnmGL")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(Slang_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Slang)
 
 set(Sources)
 set(Libraries)
 set(Includes)
+
+find_package(slang REQUIRED PATHS ThirdParty/Slang NO_DEFAULT_PATH)
 
 function(copy_dlls_to_runtime target dll_dir)
     file(GLOB DLLS "${dll_dir}/*.dll")
@@ -74,12 +77,14 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED 
     Src/DnmGL.cpp
+    Src/ShaderCompiler.cpp
     ${Sources})
 
 add_library(DnmGL::DnmGL ALIAS ${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${Libraries}
+    slang::slang
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -102,6 +107,7 @@ find_file(DXIL_DLL
     PATHS ${CMAKE_PREFIX_PATH}/bin ${CMAKE_PREFIX_PATH}/tools/directxshadercompiler
     NO_DEFAULT_PATH
 )
+file(GLOB DLLS ThirdParty/Slang/bin/*.dll)
 
 list(APPEND DLLS ${DXIL_DLL})
 

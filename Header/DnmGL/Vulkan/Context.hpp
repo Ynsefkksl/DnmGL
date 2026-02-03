@@ -108,7 +108,7 @@ namespace DnmGL::Vulkan {
             vk::ImageLayout layout;
         };
 
-        struct InternalBufferResource {
+        struct UpdateBufferResource {
             vk::Buffer buffer;
             vk::DescriptorType type;
             uint32_t offset;
@@ -119,7 +119,7 @@ namespace DnmGL::Vulkan {
             uint32_t array_element;
         };
 
-        struct InternalImageResource {
+        struct UpdateImageResource {
             vk::ImageView image_view;
             vk::ImageLayout image_layout;
             vk::DescriptorType type;
@@ -129,7 +129,7 @@ namespace DnmGL::Vulkan {
             uint32_t array_element;
         };
 
-        struct InternalSamplerResource {
+        struct UpdateSamplerResource {
             vk::Sampler sampler;
 
             vk::DescriptorSet set;
@@ -139,9 +139,8 @@ namespace DnmGL::Vulkan {
 
         struct SupportedFeatures {
             bool uniform_buffer_update_after_bind : 1{};
-            bool storage_buffer_update_after_bind : 1{};
-            bool storage_image_update_after_bind : 1{};
-            bool sampled_image_update_after_bind : 1{};
+            //uniform buffers are separate; all other resources behave the same
+            bool descriptor_update_after_bind : 1{};
 
             bool memory_budget : 1{};
             bool pageable_device_local_memory : 1{};
@@ -154,9 +153,7 @@ namespace DnmGL::Vulkan {
             operator std::string() {
                 std::string s("\nSupported Features: \n");
                 s += "uniform_buffer_update_after_bind: " + std::string(uniform_buffer_update_after_bind ? "true" : "false") + "\n";
-                s += "storage_buffer_update_after_bind: " + std::string(storage_buffer_update_after_bind ? "true" : "false") + "\n";
-                s += "storage_image_update_after_bind: " + std::string(storage_image_update_after_bind ? "true" : "false") + "\n";
-                s += "sampled_image_update_after_bind: " + std::string(sampled_image_update_after_bind ? "true" : "false") + "\n";
+                s += "descriptor_update_after_bind: " + std::string(descriptor_update_after_bind ? "true" : "false") + "\n";
                 s += "memory_budget: " + std::string(memory_budget ? "true" : "false") + "\n";
                 s += "pageable_device_local_memory: " + std::string(pageable_device_local_memory ? "true" : "false") + "\n";
                 s += "memory_priority: " + std::string(memory_priority ? "true" : "false") + "\n";
@@ -189,14 +186,13 @@ namespace DnmGL::Vulkan {
         void Render(const std::function<bool(DnmGL::CommandBuffer*)>& func) override;
         void WaitForGPU() override;
         
-        [[nodiscard]] std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Sampler> CreateSampler(const DnmGL::SamplerDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Shader> CreateShader(std::string_view) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::ResourceManager> CreateResourceManager(std::span<const DnmGL::Shader*>) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::ComputePipeline> CreateComputePipeline(const DnmGL::ComputePipelineDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::GraphicsPipeline> CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc&) noexcept override;
+        [[nodiscard]] DnmGL::Buffer::Ptr CreateBuffer(const DnmGL::BufferDesc &) noexcept override;
+        [[nodiscard]] DnmGL::Image::Ptr CreateImage(const DnmGL::ImageDesc &) noexcept override;
+        [[nodiscard]] DnmGL::Sampler::Ptr CreateSampler(const DnmGL::SamplerDesc &) noexcept override;
+        [[nodiscard]] DnmGL::GraphicsPipeline::Ptr CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc &) noexcept override;
+        [[nodiscard]] DnmGL::ComputePipeline::Ptr CreateComputePipeline(std::string_view) noexcept override;
+        [[nodiscard]] DnmGL::Framebuffer::Ptr CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept override;
+        [[nodiscard]] DnmGL::ContextState GetContextState() noexcept override;
 
         [[nodiscard]] constexpr auto GetInstance() const noexcept { return m_instance; }
         [[nodiscard]] constexpr auto GetSurface() const noexcept { return m_surface; }
@@ -215,11 +211,8 @@ namespace DnmGL::Vulkan {
         [[nodiscard]] constexpr auto* GetResolveImage() const noexcept { return m_resolve_image; }
         [[nodiscard]] constexpr auto GetSwapchainProperties() const noexcept { return m_swapchain_properties; }
         [[nodiscard]] constexpr auto GetImageIndex() const noexcept { return m_image_index; }
-        [[nodiscard]] constexpr auto GetEmptySetLayout() const noexcept { return m_empty_set_layout; }
-        [[nodiscard]] constexpr auto GetEmptySet() const noexcept { return m_empty_set; }
         [[nodiscard]] constexpr const auto& GetDispatcher() const noexcept { return dispatcher; }
-        [[nodiscard]] DnmGL::ContextState GetContextState() noexcept override;
-        [[nodiscard]] vk::SampleCountFlagBits GetSampleCount(DnmGL::SampleCount sample_count, bool has_stencil) const noexcept;
+        [[nodiscard]] vk::SampleCountFlagBits GetSampleCount(DnmGL::SampleCount sample_count) const noexcept;
 
         vk::Framebuffer GetOrCreateFramebuffer(vk::RenderPass renderpass) noexcept;
         void ReCreateFramebuffersForSwapchainChanges() noexcept;
@@ -231,26 +224,27 @@ namespace DnmGL::Vulkan {
             defer_vulkan_obj_delete.emplace_back(std::move(delete_func));
         }
 
+        vk::DescriptorSet CreateDescriptorSet(vk::DescriptorSetLayout layout) const noexcept;
+
         Vulkan::CommandBuffer* GetCommandBufferIfRecording();
-        //just for new created images
 
-        void DeferResourceUpdate(const std::span<const InternalBufferResource>& res);
-        void DeferResourceUpdate(const std::span<const InternalImageResource>& res);
-        void DeferResourceUpdate(const std::span<const InternalSamplerResource>& res);
+        void UpdateDescriptor(const UpdateBufferResource &desc);
+        void UpdateDescriptor(const UpdateImageResource &desc);
+        void UpdateDescriptor(const UpdateSamplerResource &desc);
 
-        void ProcessResource(
-            const Context::InternalBufferResource& res, vk::DescriptorBufferInfo& info, vk::WriteDescriptorSet& write);
-        void ProcessResource(
-            const Context::InternalImageResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write);
-        void ProcessResource(
-            const Context::InternalSamplerResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write);
+        static void ProcessResource(
+            const Context::UpdateBufferResource& res, vk::DescriptorBufferInfo& info, vk::WriteDescriptorSet& write);
+        static void ProcessResource(
+            const Context::UpdateImageResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write);
+        static void ProcessResource(
+            const Context::UpdateSamplerResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write);
+
+        void UpdatePendingDescriptors();
     private:
         std::vector<std::function<void(vk::Device device, VmaAllocator allocator)>> defer_vulkan_obj_delete;
 
-        using InternalResource = std::variant<InternalBufferResource, InternalImageResource, InternalSamplerResource>;
-        //just for new created images
-        std::vector<InternalResource> defer_resource_update;
-        void ProcessResourceUpdates();
+        using InternalResource = std::variant<UpdateBufferResource, UpdateImageResource, UpdateSamplerResource>;
+        std::vector<InternalResource> pending_descriptors{};
         void DeleteVulkanObjects();
         void CreateFramebuffers(vk::RenderPass renderpass, std::vector<vk::Framebuffer>& out_framebuffers) noexcept;
 
@@ -297,8 +291,6 @@ namespace DnmGL::Vulkan {
         std::unordered_map<VkRenderPass, std::vector<vk::Framebuffer>> m_framebuffers;
         VmaAllocator m_vma_allocator = VK_NULL_HANDLE;
         vk::DescriptorPool m_descriptor_pool;
-        vk::DescriptorSetLayout m_empty_set_layout;
-        vk::DescriptorSet m_empty_set;
         SwapchainProperties m_swapchain_properties;
         SwapchainSettings m_swapchain_settings;
         Image* m_depth_buffer;
@@ -328,7 +320,7 @@ namespace DnmGL::Vulkan {
         return nullptr;
     }
 
-    inline void Context::ProcessResource(const Context::InternalBufferResource& res, vk::DescriptorBufferInfo& info, vk::WriteDescriptorSet& write) {
+    inline void Context::ProcessResource(const Context::UpdateBufferResource& res, vk::DescriptorBufferInfo& info, vk::WriteDescriptorSet& write) {
         info.setBuffer(res.buffer)
                 .setOffset(res.offset)
                 .setRange(res.size);
@@ -341,7 +333,7 @@ namespace DnmGL::Vulkan {
                 .setDstSet(res.set);
     }
 
-    inline void Context::ProcessResource(const Context::InternalImageResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write) {
+    inline void Context::ProcessResource(const Context::UpdateImageResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write) {
         info.setImageView(res.image_view)
             .setImageLayout(res.image_layout)
             ;
@@ -354,7 +346,7 @@ namespace DnmGL::Vulkan {
                 .setDstSet(res.set);
     }
 
-    inline void Context::ProcessResource(const Context::InternalSamplerResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write) {
+    inline void Context::ProcessResource(const Context::UpdateSamplerResource& res, vk::DescriptorImageInfo& info, vk::WriteDescriptorSet& write) {
         info.setSampler(res.sampler);
 
         write.setImageInfo({info})
@@ -365,18 +357,6 @@ namespace DnmGL::Vulkan {
             .setDstSet(res.set);
     }
 
-    inline void Context::DeferResourceUpdate(const std::span<const InternalBufferResource>& res) {
-        defer_resource_update.insert(defer_resource_update.end(), res.begin(), res.end());
-    }
-
-    inline void Context::DeferResourceUpdate(const std::span<const InternalImageResource>& res) {
-        defer_resource_update.insert(defer_resource_update.end(), res.begin(), res.end());
-    }
-
-    inline void Context::DeferResourceUpdate(const std::span<const InternalSamplerResource>& res) {
-        defer_resource_update.insert(defer_resource_update.end(), res.begin(), res.end());
-    }
-
     inline void Context::DeleteVulkanObjects() {
         for (const auto& delete_func : defer_vulkan_obj_delete) {
             delete_func(m_device, m_vma_allocator);
@@ -385,12 +365,11 @@ namespace DnmGL::Vulkan {
         defer_vulkan_obj_delete.clear();
     }
 
-    inline vk::SampleCountFlagBits Context::GetSampleCount(DnmGL::SampleCount sample_count, bool has_stencil) const noexcept {
+    inline vk::SampleCountFlagBits Context::GetSampleCount(DnmGL::SampleCount sample_count) const noexcept {
         const auto properties = m_physical_device.getProperties();
         //framebuffer and sampled support same
         //color and stencil support same
         vk::SampleCountFlags supported_samples = properties.limits.framebufferColorSampleCounts;
-        if (has_stencil) supported_samples |= properties.limits.framebufferStencilSampleCounts;
         //TODO: check integer format and storage buffer msaa support
 
         switch (sample_count) {
@@ -424,5 +403,87 @@ namespace DnmGL::Vulkan {
                 }
         }
         return vk::SampleCountFlagBits::e1;
+    }
+
+    inline void Context::UpdateDescriptor(const UpdateBufferResource &desc) {
+        const bool uab = desc.type != vk::DescriptorType::eUniformBuffer ? 
+            supported_features.descriptor_update_after_bind : supported_features.uniform_buffer_update_after_bind;
+
+        if (GetContextState() == ContextState::eCommandExecuting && !uab) {
+            pending_descriptors.push_back(desc);
+            return;
+        }
+
+        vk::WriteDescriptorSet write;
+        vk::DescriptorBufferInfo buffer_info;
+
+        ProcessResource(desc, buffer_info, write);
+
+        m_device.updateDescriptorSets(write, {});
+    }
+
+    inline void Context::UpdateDescriptor(const UpdateImageResource &desc) {
+        if (GetContextState() == ContextState::eCommandExecuting && !supported_features.descriptor_update_after_bind) {
+            pending_descriptors.push_back(desc);
+            return;
+        }
+
+        vk::WriteDescriptorSet write;
+        vk::DescriptorImageInfo image_info;
+
+        ProcessResource(desc, image_info, write);
+
+        m_device.updateDescriptorSets(write, {});
+    }
+
+    inline void Context::UpdateDescriptor(const UpdateSamplerResource &desc) {
+        if (GetContextState() == ContextState::eCommandExecuting && !supported_features.descriptor_update_after_bind) {
+            pending_descriptors.push_back(desc);
+            return;
+        }
+
+        vk::WriteDescriptorSet write;
+        vk::DescriptorImageInfo image_info;
+
+        ProcessResource(desc, image_info, write);
+
+        m_device.updateDescriptorSets(write, {});
+    }
+
+    inline void Context::UpdatePendingDescriptors() {
+        std::vector<vk::WriteDescriptorSet> writes{};
+        std::vector<vk::DescriptorImageInfo> image_infos{};
+        std::vector<vk::DescriptorBufferInfo> buffer_infos{};
+
+        writes.reserve(pending_descriptors.size());
+        image_infos.reserve(pending_descriptors.size());
+        buffer_infos.reserve(pending_descriptors.size());
+
+        for (const auto& descriptor : pending_descriptors) {
+            std::visit([&writes, &image_infos, &buffer_infos] (auto&& res) {
+                using T = std::decay_t<decltype(res)>;
+                if constexpr (std::is_same_v<T, UpdateBufferResource>) {
+                    ProcessResource(res, buffer_infos.emplace_back(), writes.emplace_back());
+                }
+                else if constexpr (std::is_same_v<T, UpdateImageResource>) {
+                    ProcessResource(res, image_infos.emplace_back(), writes.emplace_back());
+                }
+                else if constexpr (std::is_same_v<T, UpdateSamplerResource>) {
+                    ProcessResource(res, image_infos.emplace_back(), writes.emplace_back());
+                }
+            }, descriptor);
+        }
+
+        m_device.updateDescriptorSets(writes, {});
+
+        pending_descriptors.clear();
+    }
+
+    inline vk::DescriptorSet Context::CreateDescriptorSet(vk::DescriptorSetLayout layout) const noexcept {
+        return m_device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
+            m_descriptor_pool,
+            1,
+            &layout
+        })[0];
     }
 }

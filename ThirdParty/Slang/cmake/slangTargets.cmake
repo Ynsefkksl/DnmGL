@@ -7,7 +7,7 @@ if(CMAKE_VERSION VERSION_LESS "2.8.3")
    message(FATAL_ERROR "CMake >= 2.8.3 required")
 endif()
 cmake_policy(PUSH)
-cmake_policy(VERSION 2.8.3...3.29)
+cmake_policy(VERSION 2.8.3...4.0)
 #----------------------------------------------------------------
 # Generated CMake target import file.
 #----------------------------------------------------------------
@@ -19,7 +19,7 @@ set(CMAKE_IMPORT_FILE_VERSION 1)
 set(_cmake_targets_defined "")
 set(_cmake_targets_not_defined "")
 set(_cmake_expected_targets "")
-foreach(_cmake_expected_target IN ITEMS slang::slang-llvm slang::slang-glslang slang::slangd slang::slangi slang::gfx slang::slang-glsl-module slang::slang slang::slangc)
+foreach(_cmake_expected_target IN ITEMS slang::slang-glslang slang::slangd slang::slangi slang::gfx slang::slang-glsl-module slang::slang slang::slangc)
   list(APPEND _cmake_expected_targets "${_cmake_expected_target}")
   if(TARGET "${_cmake_expected_target}")
     list(APPEND _cmake_targets_defined "${_cmake_expected_target}")
@@ -52,13 +52,6 @@ get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
 if(_IMPORT_PREFIX STREQUAL "/")
   set(_IMPORT_PREFIX "")
 endif()
-
-# Create imported target slang::slang-llvm
-add_library(slang::slang-llvm MODULE IMPORTED)
-
-set_target_properties(slang::slang-llvm PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "SLANG_DYNAMIC"
-)
 
 # Create imported target slang::slang-glslang
 add_library(slang::slang-glslang MODULE IMPORTED)

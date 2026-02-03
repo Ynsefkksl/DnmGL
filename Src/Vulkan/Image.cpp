@@ -80,7 +80,7 @@ namespace DnmGL::Vulkan {
                     .setArrayLayers((m_desc.type == ImageType::e2D) ? m_desc.extent.z : 1u)
                     .setExtent(vk::Extent3D(m_desc.extent.x, m_desc.extent.y, (m_desc.type == ImageType::e3D) ? 1 : m_desc.extent.z))
                     .setFlags(flags)
-                    .setSamples(VulkanContext->GetSampleCount(desc.sample_count, bool(m_aspect & vk::ImageAspectFlagBits::eStencil)))
+                    .setSamples(VulkanContext->GetSampleCount(desc.sample_count))
                     .setSharingMode(vk::SharingMode::eExclusive)
                     .setTiling(vk::ImageTiling::eOptimal)
                     .setUsage(GetVkUsageFlags(m_desc.usage_flags))
@@ -142,7 +142,7 @@ namespace DnmGL::Vulkan {
         });
     }
 
-    vk::ImageView Image::CreateGetImageView(const ImageSubresource& subresource) {
+    vk::ImageView Image::CreateGetImageView(ImageSubresource subresource) {
         auto [it, is_inserted] = m_image_views.try_emplace(subresource, VK_NULL_HANDLE);
         if (!is_inserted) { return it->second; }
 

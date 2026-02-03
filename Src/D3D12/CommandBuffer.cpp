@@ -3,7 +3,6 @@
 #include "DnmGL/D3D12/Buffer.hpp"
 #include "DnmGL/D3D12/Image.hpp"
 #include "DnmGL/D3D12/Framebuffer.hpp"
-#include "DnmGL/D3D12/ResourceManager.hpp"
 #include "DnmGL/D3D12/ToDxgiFormat.hpp"
 
 namespace DnmGL::D3D12 {
@@ -45,12 +44,20 @@ namespace DnmGL::D3D12 {
             &m_command_list);
     }
 
-    void CommandBuffer::IBindPipeline(const DnmGL::ComputePipeline* pipeline) {
-        DnmGLAssert(false, "this func is not complate")
-        //m_command_list->SetComputeRoot
-
+    void CommandBuffer::IComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x, uint16_t y, uint16_t z) {
         const auto *typed_pipeline = static_cast<const D3D12::ComputePipeline *>(pipeline);
-        m_command_list->SetPipelineState(typed_pipeline->GetPipelineState());
+
+        m_command_list->SetPipelineState(typed_pipeline->GetPipelineState(std::string(kernel)));
+
+        if (active_compute_pipeline != pipeline) {
+            m_command_list->SetGraphicsRootSignature(typed_pipeline->GetRootSignature());
+            ID3D12DescriptorHeap* heaps[] = { typed_pipeline->GetDescriptorHeap(), typed_pipeline->GetSamplerHeap() };
+            m_command_list->SetDescriptorHeaps(2, heaps);
+            m_command_list->SetGraphicsRootDescriptorTable(0, heaps[0]->GetGPUDescriptorHandleForHeapStart());
+            m_command_list->SetGraphicsRootDescriptorTable(1, heaps[1]->GetGPUDescriptorHandleForHeapStart());
+        }
+
+        m_command_list->Dispatch(x, y, z);
     }
 
     void CommandBuffer::ICopyImageToBuffer(const DnmGL::ImageToBufferCopyDesc& desc) {
@@ -322,7 +329,7 @@ namespace DnmGL::D3D12 {
     }
 
     void CommandBuffer::IUploadData(DnmGL::Image *image, 
-                        const ImageSubresource& subresource, 
+                        ImageSubresource subresource, 
                         const void* data, 
                         Uint3 copy_extent, 
                         Uint3 copy_offset) {
@@ -428,7 +435,6 @@ namespace DnmGL::D3D12 {
 
     void CommandBuffer::IBeginRendering(const BeginRenderingDesc& desc) {
         const auto *typed_pipeline = static_cast<const GraphicsPipeline *>(desc.pipeline);
-        const auto *typed_resource_manager = static_cast<const ResourceManager *>(desc.pipeline->GetDesc().resource_manager);
 
         std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> render_target_descs{};
         D3D12_RENDER_PASS_DEPTH_STENCIL_DESC depth_stencil_desc{};
@@ -450,11 +456,11 @@ namespace DnmGL::D3D12 {
         m_command_list->SetPipelineState(typed_pipeline->GetPipelineState());
         m_command_list->SetGraphicsRootSignature(typed_pipeline->GetRootSignature());
 
-        ID3D12DescriptorHeap* heaps[] = { typed_resource_manager->GetDescriptorHeap(), typed_resource_manager->GetSamplerHeap() };
+        ID3D12DescriptorHeap* heaps[] = { typed_pipeline->GetDescriptorHeap(), typed_pipeline->GetSamplerHeap() };
         m_command_list->SetDescriptorHeaps(2, heaps);
         m_command_list->SetGraphicsRootDescriptorTable(0, heaps[0]->GetGPUDescriptorHandleForHeapStart());
         m_command_list->SetGraphicsRootDescriptorTable(1, heaps[1]->GetGPUDescriptorHandleForHeapStart());
-        m_command_list->IASetPrimitiveTopology(PrimativeTopology(typed_pipeline->GetDesc().topology));
+        m_command_list->IASetPrimitiveTopology(PrimativeTopology(typed_pipeline->GetDesc().input_assembly_desc->topology));
     }
 
     void CommandBuffer::IEndRendering() {
@@ -696,6 +702,9 @@ namespace DnmGL::D3D12 {
     }
 
     void CommandBuffer::DeferStateTranslation() {
+        if (m_defer_state_translation_buffer.size() + m_defer_state_translation_image.size() == 0)
+            return;
+        
         std::vector<D3D12_RESOURCE_BARRIER> resource_barriers{};
         resource_barriers.reserve(m_defer_state_translation_buffer.size() + m_defer_state_translation_image.size());
         for (auto *buffer : m_defer_state_translation_buffer) {
@@ -711,7 +720,7 @@ namespace DnmGL::D3D12 {
                     }
                 }
             );
-            buffer->m_state = buffer->GetState();
+            buffer->m_state = buffer->GetIdealState();
         }
         for (auto *image : m_defer_state_translation_image) {
             resource_barriers.push_back(
@@ -726,10 +735,13 @@ namespace DnmGL::D3D12 {
                     }
                 }
             );
-            image->m_state = image->GetState();
+            image->m_state = image->GetIdealState();
         }
 
-        m_command_list->ResourceBarrier(resource_barriers.size(), resource_barriers.data());           
+        m_command_list->ResourceBarrier(resource_barriers.size(), resource_barriers.data());    
+
+        m_defer_state_translation_buffer.clear();
+        m_defer_state_translation_image.clear();
     }
 
     void CommandBuffer::IGenerateMipmaps(DnmGL::Image *image) {

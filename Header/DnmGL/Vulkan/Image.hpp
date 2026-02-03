@@ -15,7 +15,7 @@ namespace DnmGL::Vulkan {
         [[nodiscard]] auto *GetAllocation() const { return m_allocation; }
 
         [[nodiscard]] auto GetIdealImageLayout() const { return Vulkan::GetIdealImageLayout(m_desc.usage_flags); }
-        [[nodiscard]] vk::ImageView CreateGetImageView(const ImageSubresource& subresource);
+        [[nodiscard]] vk::ImageView CreateGetImageView(ImageSubresource subresource);
 
         vk::PipelineStageFlags prev_pipeline_stage{};
         vk::AccessFlags prev_access{};

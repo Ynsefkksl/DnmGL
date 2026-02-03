@@ -168,6 +168,7 @@ int main(int argc, char** args) {
                 }
             });
 
+
         DnmGL::Image::Ptr atlas_texture;
 
         context->ExecuteCommands([&] (DnmGL::CommandBuffer* command_buffer) -> bool {
@@ -191,11 +192,6 @@ int main(int argc, char** args) {
             stbi_image_free(image_data);
             return true;
         });
-
-        auto texture_resource = DnmGL::ResourceDesc {
-            .image = atlas_texture.get(),
-            .subresource = {},
-        };
 
         DnmGL::SpriteManager sprite_manager({
             .context = context,

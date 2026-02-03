@@ -5,16 +5,6 @@
 # Commands may need to know the format version.
 set(CMAKE_IMPORT_FILE_VERSION 1)
 
-# Import target "slang::slang-llvm" for configuration "Release"
-set_property(TARGET slang::slang-llvm APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
-set_target_properties(slang::slang-llvm PROPERTIES
-  IMPORTED_COMMON_LANGUAGE_RUNTIME_RELEASE ""
-  IMPORTED_LOCATION_RELEASE "${_IMPORT_PREFIX}/bin/slang-llvm.dll"
-  )
-
-list(APPEND _cmake_import_check_targets slang::slang-llvm )
-list(APPEND _cmake_import_check_files_for_slang::slang-llvm "${_IMPORT_PREFIX}/bin/slang-llvm.dll" )
-
 # Import target "slang::slang-glslang" for configuration "Release"
 set_property(TARGET slang::slang-glslang APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
 set_target_properties(slang::slang-glslang PROPERTIES

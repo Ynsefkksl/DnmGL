@@ -62,14 +62,12 @@ namespace DnmGL::D3D12 {
         void Render(const std::function<bool(DnmGL::CommandBuffer*)>& func) override;
         void WaitForGPU() override;
         
-        [[nodiscard]] std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Sampler> CreateSampler(const DnmGL::SamplerDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Shader> CreateShader(std::string_view) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::ResourceManager> CreateResourceManager(std::span<const DnmGL::Shader*>) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::ComputePipeline> CreateComputePipeline(const DnmGL::ComputePipelineDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::GraphicsPipeline> CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc&) noexcept override;
-        [[nodiscard]] std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc&) noexcept override;
+        [[nodiscard]] DnmGL::Buffer::Ptr CreateBuffer(const DnmGL::BufferDesc &) noexcept override;
+        [[nodiscard]] DnmGL::Image::Ptr CreateImage(const DnmGL::ImageDesc &) noexcept override;
+        [[nodiscard]] DnmGL::Sampler::Ptr CreateSampler(const DnmGL::SamplerDesc &) noexcept override;
+        [[nodiscard]] DnmGL::GraphicsPipeline::Ptr CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc &) noexcept override;
+        [[nodiscard]] DnmGL::Framebuffer::Ptr CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept override;
+        [[nodiscard]] DnmGL::ComputePipeline::Ptr CreateComputePipeline(std::string_view) noexcept override;
         [[nodiscard]] DnmGL::ContextState GetContextState() noexcept override;
 
         [[nodiscard]] constexpr auto* GetSwapChain() const noexcept { return m_swapchain.Get(); }

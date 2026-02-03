@@ -4,8 +4,6 @@
 #include "DnmGL/Vulkan/CommandBuffer.hpp"
 #include "DnmGL/Vulkan/Image.hpp"
 #include "DnmGL/Vulkan/Buffer.hpp"
-#include "DnmGL/Vulkan/Shader.hpp"
-#include "DnmGL/Vulkan/ResourceManager.hpp"
 #include "DnmGL/Vulkan/Pipeline.hpp"
 #include "DnmGL/Vulkan/Framebuffer.hpp"
 #include "DnmGL/Vulkan/Sampler.hpp"
@@ -244,17 +242,11 @@ namespace DnmGL::Vulkan {
             return false;
         }
 
-        supported_features.sampled_image_update_after_bind
+        supported_features.descriptor_update_after_bind
             = descriptor_indexing.descriptorBindingSampledImageUpdateAfterBind;
 
-        supported_features.storage_image_update_after_bind
+        supported_features.descriptor_update_after_bind
             = descriptor_indexing.descriptorBindingStorageImageUpdateAfterBind;
-
-        supported_features.uniform_buffer_update_after_bind
-            = descriptor_indexing.descriptorBindingUniformBufferUpdateAfterBind;
-
-        supported_features.storage_buffer_update_after_bind
-            = descriptor_indexing.descriptorBindingStorageBufferUpdateAfterBind;
 
         supported_features.sync2
             = sync2.synchronization2;
@@ -284,7 +276,6 @@ namespace DnmGL::Vulkan {
 
         if (m_device) m_device.waitIdle();
         
-        if (m_empty_set_layout) m_device.destroy(m_empty_set_layout);
         if (m_depth_buffer) delete m_depth_buffer;
         if (m_resolve_image) delete m_resolve_image;
         if (placeholder_image) delete placeholder_image;
@@ -484,9 +475,8 @@ namespace DnmGL::Vulkan {
         features.features.robustBufferAccess = vk::True;
         features.features.samplerAnisotropy = features.features.samplerAnisotropy;
         descriptor_indexing.descriptorBindingUniformBufferUpdateAfterBind = supported_features.uniform_buffer_update_after_bind;
-        descriptor_indexing.descriptorBindingStorageBufferUpdateAfterBind = supported_features.storage_buffer_update_after_bind;
-        descriptor_indexing.descriptorBindingStorageImageUpdateAfterBind = supported_features.storage_image_update_after_bind;
-        descriptor_indexing.descriptorBindingSampledImageUpdateAfterBind = supported_features.sampled_image_update_after_bind;
+        //uniform buffers are separate; all other resources behave the same
+        descriptor_indexing.descriptorBindingSampledImageUpdateAfterBind = supported_features.descriptor_update_after_bind;
         memory_priorty.memoryPriority = supported_features.memory_priority;
         pageable_device_local_memory.pageableDeviceLocalMemory = supported_features.pageable_device_local_memory;
         sync2.synchronization2 = supported_features.sync2;
@@ -496,9 +486,7 @@ namespace DnmGL::Vulkan {
             extensions.emplace_back(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME);
         }
         if (supported_features.uniform_buffer_update_after_bind
-        || supported_features.storage_buffer_update_after_bind
-        || supported_features.storage_image_update_after_bind
-        || supported_features.sampled_image_update_after_bind) {
+        || supported_features.descriptor_update_after_bind) {
             extensions.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         }
         if (supported_features.memory_priority) {
@@ -560,15 +548,17 @@ namespace DnmGL::Vulkan {
     }
 
     void Context::CreateDescriptorPool() {
-        vk::DescriptorPoolSize pool_sizes[4];
-        pool_sizes[0].setType(vk::DescriptorType::eStorageBuffer).setDescriptorCount(512);
-        pool_sizes[1].setType(vk::DescriptorType::eUniformBuffer).setDescriptorCount(512);
-        pool_sizes[2].setType(vk::DescriptorType::eCombinedImageSampler).setDescriptorCount(512);
-        pool_sizes[3].setType(vk::DescriptorType::eStorageImage).setDescriptorCount(512);
+        vk::DescriptorPoolSize pool_sizes[5];
+        pool_sizes[0].setType(vk::DescriptorType::eStorageBuffer).setDescriptorCount(2048);
+        pool_sizes[1].setType(vk::DescriptorType::eUniformBuffer).setDescriptorCount(2048);
+        pool_sizes[2].setType(vk::DescriptorType::eSampledImage).setDescriptorCount(2048);
+        pool_sizes[3].setType(vk::DescriptorType::eStorageImage).setDescriptorCount(2048);
+        pool_sizes[4].setType(vk::DescriptorType::eSampler).setDescriptorCount(2048);
 
         m_descriptor_pool = m_device.createDescriptorPool(
             vk::DescriptorPoolCreateInfo{}
-                .setFlags({})
+                .setFlags(supported_features.descriptor_update_after_bind ? 
+                                    vk::DescriptorPoolCreateFlagBits::eUpdateAfterBindEXT : vk::DescriptorPoolCreateFlagBits{})
                 .setMaxSets(512)
                 .setPoolSizes(pool_sizes));
     }
@@ -658,7 +648,7 @@ namespace DnmGL::Vulkan {
         [[maybe_unused]] auto _ = m_device.waitForFences(m_fence, vk::True, 1'000'000'000);
         m_device.resetFences(m_fence);
 
-        ProcessResourceUpdates();
+        UpdatePendingDescriptors();
         DeleteVulkanObjects();
 
         m_device.resetCommandPool(m_command_pool);
@@ -710,7 +700,7 @@ namespace DnmGL::Vulkan {
             m_image_index = result.value;
         }
 
-        ProcessResourceUpdates();
+        UpdatePendingDescriptors();
         DeleteVulkanObjects();
 
         {
@@ -767,44 +757,7 @@ namespace DnmGL::Vulkan {
         context_state = ContextState::eCommandExecuting;
     }
 
-    void Context::ProcessResourceUpdates() {
-        std::vector<vk::WriteDescriptorSet> writes{};
-        std::vector<vk::DescriptorImageInfo> image_infos{};
-        std::vector<vk::DescriptorBufferInfo> buffer_infos{};
-
-        writes.reserve(defer_resource_update.size());
-        image_infos.reserve(defer_resource_update.size());
-        buffer_infos.reserve(defer_resource_update.size());
-
-        for (const auto& descriptor : defer_resource_update) {
-            std::visit([&writes, &image_infos, &buffer_infos, this] (auto&& res) {
-                using T = std::decay_t<decltype(res)>;
-                if constexpr (std::is_same_v<T, InternalBufferResource>) {
-                    ProcessResource(res, buffer_infos.emplace_back(), writes.emplace_back());
-                }
-                else if constexpr (std::is_same_v<T, InternalImageResource>) {
-                    ProcessResource(res, image_infos.emplace_back(), writes.emplace_back());
-                }
-                else if constexpr (std::is_same_v<T, InternalSamplerResource>) {
-                    ProcessResource(res, image_infos.emplace_back(), writes.emplace_back());
-                }
-            }, descriptor);
-        }
-
-        m_device.updateDescriptorSets(writes, {});
-
-        defer_resource_update.clear();
-    }
-
     void Context::CreateResource() {
-        m_empty_set_layout = m_device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{}.setBindingCount(0));
-        m_empty_set
-            = m_device.allocateDescriptorSets(
-                vk::DescriptorSetAllocateInfo{}
-                    .setSetLayouts(m_empty_set_layout)
-                    .setDescriptorSetCount(1)
-                    .setDescriptorPool(m_descriptor_pool))[0];
-
         ExecuteCommands([&] (DnmGL::CommandBuffer* command_buffer) -> bool {
             auto *typed_command_buffer = static_cast<Vulkan::CommandBuffer*>(command_buffer);
 
@@ -835,6 +788,7 @@ namespace DnmGL::Vulkan {
                 {1,1,1}, 
                 {0,0,0}
             );
+
             return true;
         });
 
@@ -948,38 +902,30 @@ namespace DnmGL::Vulkan {
         }   
     }
 
-    std::unique_ptr<DnmGL::Buffer> Context::CreateBuffer(const DnmGL::BufferDesc& desc) noexcept {
+    DnmGL::Buffer::Ptr Context::CreateBuffer(const DnmGL::BufferDesc& desc) noexcept {
         return std::make_unique<DnmGL::Vulkan::Buffer>(*this, desc);
     }
 
-    std::unique_ptr<DnmGL::Image> Context::CreateImage(const DnmGL::ImageDesc& desc) noexcept {
+    DnmGL::Image::Ptr Context::CreateImage(const DnmGL::ImageDesc& desc) noexcept {
         return std::make_unique<DnmGL::Vulkan::Image>(*this, desc);
     }
 
-    std::unique_ptr<DnmGL::Sampler> Context::CreateSampler(const DnmGL::SamplerDesc& desc) noexcept {
+    DnmGL::Sampler::Ptr Context::CreateSampler(const DnmGL::SamplerDesc& desc) noexcept {
         return std::make_unique<DnmGL::Vulkan::Sampler>(*this, desc);
     }
 
-    std::unique_ptr<DnmGL::Shader> Context::CreateShader(std::string_view filename) noexcept {
-        return std::make_unique<DnmGL::Vulkan::Shader>(*this, filename);
-    }
-
-    std::unique_ptr<DnmGL::ResourceManager> Context::CreateResourceManager(std::span<const DnmGL::Shader*> shaders) noexcept {
-        return std::make_unique<DnmGL::Vulkan::ResourceManager>(*this, shaders);
-    }
-
-    std::unique_ptr<DnmGL::ComputePipeline> Context::CreateComputePipeline(const DnmGL::ComputePipelineDesc& desc) noexcept {
+    DnmGL::ComputePipeline::Ptr Context::CreateComputePipeline(std::string_view desc) noexcept {
         return std::make_unique<DnmGL::Vulkan::ComputePipeline>(*this, desc);
     }
 
-    std::unique_ptr<DnmGL::GraphicsPipeline> Context::CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc& desc) noexcept {
+    DnmGL::GraphicsPipeline::Ptr Context::CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc &desc) noexcept {
         if (GetSupportedFeatures().dynamic_rendering) {
             return std::make_unique<DnmGL::Vulkan::GraphicsPipelineDynamicRendering>(*this, desc);
         }
         return std::make_unique<DnmGL::Vulkan::GraphicsPipelineDefaultVk>(*this, desc);
     }
 
-    std::unique_ptr<DnmGL::Framebuffer> Context::CreateFramebuffer(const DnmGL::FramebufferDesc& desc) noexcept {
+    DnmGL::Framebuffer::Ptr Context::CreateFramebuffer(const DnmGL::FramebufferDesc& desc) noexcept {
         if (GetSupportedFeatures().dynamic_rendering) {
             return std::make_unique<DnmGL::Vulkan::FramebufferDynamicRendering>(*this, desc);
         }

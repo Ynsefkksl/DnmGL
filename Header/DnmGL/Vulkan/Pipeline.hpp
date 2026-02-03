@@ -6,88 +6,86 @@
 namespace DnmGL::Vulkan {
     class GraphicsPipelineBase : public DnmGL::GraphicsPipeline {
     public:
-        GraphicsPipelineBase(Vulkan::Context& context, const DnmGL::GraphicsPipelineDesc& desc) noexcept;
+        GraphicsPipelineBase(Vulkan::Context &context, const DnmGL::GraphicsPipelineDesc &desc) noexcept;
+
+        void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) override;
+        void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) override;
+        void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) override;
 
         [[nodiscard]] auto GetPipelineLayout() const { return m_pipeline_layout; }
-        [[nodiscard]] std::span<const vk::DescriptorSet, 4> GetDstSets() const { return m_dst_sets; }
-        [[nodiscard]] auto GetPipelineStageFlags() const { return m_pipeline_stage_flags; }
-        [[nodiscard]] auto GetAccessFlags() const { return m_access_flags; }
-        [[nodiscard]] auto GetSampleCount() const { return m_sample_count; }
+        [[nodiscard]] auto GetDstSet() const { return m_dst_set; }
     protected:
         vk::Pipeline CreatePipeline(vk::RenderPass renderpass) noexcept;
 
+        vk::DescriptorSetLayout m_dst_set_layout;
+        vk::DescriptorSet m_dst_set;
         vk::PipelineLayout m_pipeline_layout;
-        vk::DescriptorSet m_dst_sets[4];
-
-        vk::PipelineStageFlags m_pipeline_stage_flags;
-        vk::AccessFlags m_access_flags;
-        vk::SampleCountFlagBits m_sample_count;
+        vk::ShaderModule m_shader_module;
     };
 
     class GraphicsPipelineDefaultVk final : public GraphicsPipelineBase {
     public:
-        GraphicsPipelineDefaultVk(Vulkan::Context& context, const DnmGL::GraphicsPipelineDesc& desc) noexcept;
+        GraphicsPipelineDefaultVk(Vulkan::Context &context, const DnmGL::GraphicsPipelineDesc &desc) noexcept;
         ~GraphicsPipelineDefaultVk() noexcept;
 
         std::pair<vk::RenderPass, vk::Pipeline> GetOrCreateAttachmentOpVariant(AttachmentOps attachment_ops, bool presenting);
         vk::RenderPass GetRenderpass(uint32_t attachment_ops) noexcept;
         vk::Pipeline GetPipeline(vk::RenderPass render_pass) noexcept;
-
-        [[nodiscard]] auto GetPipelineLayout() const { return m_pipeline_layout; }
-        [[nodiscard]] std::span<const vk::DescriptorSet, 4> GetDstSets() const { return m_dst_sets; }
-        [[nodiscard]] auto GetPipelineStageFlags() const { return m_pipeline_stage_flags; }
-        [[nodiscard]] auto GetAccessFlags() const { return m_access_flags; }
     private:
         vk::RenderPass CreateRenderpass(AttachmentOps renderpass_desc, bool presenting) noexcept;
-        //for renderpass
+
         std::unordered_map<VkRenderPass, vk::Pipeline> m_pipelines;
         std::unordered_map<uint32_t, vk::RenderPass> m_renderpasses;
     };
 
     class GraphicsPipelineDynamicRendering final : public GraphicsPipelineBase {
     public:
-        GraphicsPipelineDynamicRendering(Vulkan::Context& context, const DnmGL::GraphicsPipelineDesc& desc) noexcept;
+        GraphicsPipelineDynamicRendering(Vulkan::Context &context, const DnmGL::GraphicsPipelineDesc &desc) noexcept;
         ~GraphicsPipelineDynamicRendering() noexcept;
 
         [[nodiscard]] vk::Pipeline GetPipeline() const noexcept { return m_pipeline; }
-
-        [[nodiscard]] auto GetPipelineLayout() const { return m_pipeline_layout; }
-        [[nodiscard]] std::span<const vk::DescriptorSet, 4> GetDstSets() const { return m_dst_sets; }
-        [[nodiscard]] auto GetPipelineStageFlags() const { return m_pipeline_stage_flags; }
-        [[nodiscard]] auto GetAccessFlags() const { return m_access_flags; }
     private:
         vk::Pipeline m_pipeline;
     };
 
-    class ComputePipeline final : public DnmGL::ComputePipeline  {
+    class ComputePipeline final : public DnmGL::ComputePipeline {
     public:
-        ComputePipeline(Vulkan::Context& context, const DnmGL::ComputePipelineDesc& desc) noexcept;
+        ComputePipeline(Vulkan::Context &context, std::string_view shader) noexcept;
         ~ComputePipeline() noexcept;
         
-        [[nodiscard]] auto GetPipeline() const { return m_pipeline; }
+        void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) override;
+        void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) override;
+        void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) override;
+
+        [[nodiscard]] vk::Pipeline GetPipeline(const std::string &name) const noexcept { 
+            auto it = m_pipelines.find(name);
+            return it == m_pipelines.end() ? VK_NULL_HANDLE : it->second;
+        }
+
         [[nodiscard]] auto GetPipelineLayout() const { return m_pipeline_layout; }
-        [[nodiscard]] std::span<const vk::DescriptorSet, 4> GetDstSets() const { return m_dst_sets; }
-
-        [[nodiscard]] auto GetPipelineStageFlags() const { return m_pipeline_stage_flags; }
-        [[nodiscard]] auto GetAccessFlags() const { return m_access_flags; }
+        [[nodiscard]] auto GetDstSet() const { return m_dst_set; }
     private:
-        vk::DescriptorSet m_dst_sets[4];
-
-        vk::PipelineStageFlags m_pipeline_stage_flags;
-        vk::AccessFlags m_access_flags;
-
-        vk::Pipeline m_pipeline;
         vk::PipelineLayout m_pipeline_layout;
+        vk::ShaderModule m_shader_module;
+        vk::DescriptorSetLayout m_dst_set_layout;
+        vk::DescriptorSet m_dst_set;
+        std::unordered_map<std::string, vk::Pipeline> m_pipelines;
     };
 
     inline ComputePipeline::~ComputePipeline() noexcept {
         VulkanContext->DeleteObject(
             [
-                pipeline = m_pipeline, 
-                pipeline_layout = m_pipeline_layout
+                pipelines = m_pipelines, 
+                pipeline_layout = m_pipeline_layout,
+                shader_module = m_shader_module,
+                dst_set_layout = m_dst_set_layout
             ] (vk::Device device, [[maybe_unused]] VmaAllocator) noexcept -> void {
+                for (const auto [_, pipeline] : pipelines)
+                    device.destroy(pipeline);
+
                 device.destroy(pipeline_layout);
-                device.destroy(pipeline);
+                device.destroy(shader_module);
+                device.destroy(dst_set_layout);
             });
     }
 
@@ -95,10 +93,14 @@ namespace DnmGL::Vulkan {
         VulkanContext->DeleteObject(
             [
                 pipeline = m_pipeline, 
-                pipeline_layout = m_pipeline_layout
+                pipeline_layout = m_pipeline_layout,
+                shader_module = m_shader_module,
+                dst_set_layout = m_dst_set_layout
             ] (vk::Device device, [[maybe_unused]] VmaAllocator) noexcept -> void {
                 device.destroy(pipeline_layout);
                 device.destroy(pipeline);
+                device.destroy(dst_set_layout);
+                device.destroy(shader_module);
             });
     }
 
@@ -107,7 +109,9 @@ namespace DnmGL::Vulkan {
             [
                 pipelines = m_pipelines, 
                 pipeline_layout = m_pipeline_layout,
-                renderpasses = m_renderpasses
+                renderpasses = m_renderpasses,
+                shader_module = m_shader_module,
+                dst_set_layout = m_dst_set_layout
             ] (vk::Device device, [[maybe_unused]] VmaAllocator) noexcept -> void {
                 for (const auto [_, pipeline] : pipelines) {
                     device.destroy(pipeline);
@@ -116,6 +120,8 @@ namespace DnmGL::Vulkan {
                     device.destroy(renderpass);
                 }
                 device.destroy(pipeline_layout);
+                device.destroy(dst_set_layout);
+                device.destroy(shader_module);
             });
     }
 }

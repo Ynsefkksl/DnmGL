@@ -60,9 +60,7 @@ namespace DnmGL::Vulkan {
         void ICopyBufferToImage(const DnmGL::BufferToImageCopyDesc& desc) override;
         void ICopyBufferToBuffer(const DnmGL::BufferToBufferCopyDesc& desc) override;
     
-        void IDispatch(uint32_t x = 1, uint32_t y = 1, uint32_t z = 1) override;
-
-        void IBindPipeline(const DnmGL::ComputePipeline* pipeline) override;
+        void IComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x = 1, uint16_t y = 1, uint16_t z = 1) override;
 
         void IGenerateMipmaps(DnmGL::Image* image) override;
     
@@ -76,7 +74,7 @@ namespace DnmGL::Vulkan {
         void ISetScissor(Uint2 extent, Uint2 offset) override;
 
         void IUploadData(DnmGL::Image *image, 
-                        const ImageSubresource& subresource, 
+                        ImageSubresource subresource, 
                         const void* data, 
                         Uint3 copy_extent, 
                         Uint3 copy_offset) override;
@@ -168,10 +166,6 @@ namespace DnmGL::Vulkan {
                 .setOffset({static_cast<int32_t>(offset.x), static_cast<int32_t>(offset.y)})
                 .setExtent({extent.x, extent.y})
         });
-    }
-
-    inline void CommandBuffer::IDispatch(uint32_t x, uint32_t y, uint32_t z) {
-        command_buffer.dispatch(x, y, z);
     }
 
     inline void CommandBuffer::Barrier(

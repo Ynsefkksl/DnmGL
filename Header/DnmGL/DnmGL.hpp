@@ -31,6 +31,9 @@
 //TODO: complate for d3d12 generate mipmap function
 //TODO: stencil is broken
 //TODO: add compressed image formats
+//TODO: add indirect rendering
+//TODO: add counter for resources
+//TODO: i forgot to put the draw command between the barriers 
 
 namespace DnmGL {
     class Context;
@@ -453,7 +456,7 @@ namespace DnmGL {
         uint8_t layer_count = 1;
         uint8_t mipmap_level = 1;
 
-        auto operator<=>(const ImageSubresource&) const = default;
+        auto operator<=>(const ImageSubresource &) const = default;
     };
 
     struct RenderAttachment {
@@ -506,54 +509,6 @@ namespace DnmGL {
         std::optional<DepthStencilClearValue> depth_stencil_clear_value;
     };
 
-    struct BindingInfo {
-        uint32_t binding;
-        uint32_t resource_count;
-        ResourceType resource_type;
-    };
-
-    struct EntryPointInfo {
-        std::string name;
-        ShaderStageBits shader_stage;
-        std::vector<BindingInfo> readonly_resources;
-        std::vector<BindingInfo> writable_resources;
-        std::vector<BindingInfo> uniform_buffer_resources;
-        std::vector<BindingInfo> sampler_resources;
-
-        constexpr bool HasReadonlyResource() const noexcept { return !readonly_resources.empty(); }
-        constexpr bool HasWritableResource() const noexcept { return !writable_resources.empty(); }
-        constexpr bool HasUniformResource() const noexcept { return !uniform_buffer_resources.empty(); }
-        constexpr bool HasSamplerResource() const noexcept { return !sampler_resources.empty(); }
-    };
-
-    struct UniformResourceDesc {
-        DnmGL::Buffer *buffer;
-        uint32_t offset;
-        uint32_t size;
-
-        uint32_t binding;
-        uint32_t array_element;
-    };
-
-    struct ResourceDesc {
-        Buffer *buffer;
-        uint32_t first_element;
-        uint32_t element_count;
-        // or
-        Image *image;
-        ImageSubresource subresource;
-
-        uint32_t binding;
-        uint32_t array_element;
-    };
-
-    struct SamplerResourceDesc {
-        DnmGL::Sampler *sampler;
-
-        uint32_t binding;
-        uint32_t array_element;
-    };
-    
     enum class ShaderType : uint8_t {
         eGraphicsShader,
         eComputeShader
@@ -577,8 +532,8 @@ namespace DnmGL {
 
     struct ShaderReflection {
         ShaderType shader_type;
-        std::vector<Resource> resources;
-        std::vector<EntryPoint> entry_points;
+        std::unordered_map<std::string, Resource> resources;
+        std::unordered_map<std::string, EntryPoint> entry_points;
     };
 
     //TODO: add pipeline properties
@@ -589,38 +544,6 @@ namespace DnmGL {
         std::vector<char> metal_code;
         //each entry point has own code in dxil
         std::unordered_map<std::string, std::vector<char>> dxil_codes;
-    };
-
-    struct GraphicsPipelineDesc {
-        std::string vertex_entry_point;
-        Shader *vertex_shader;
-        std::string fragment_entry_point;
-        Shader *fragment_shader;
-        ResourceManager *resource_manager;
-        std::vector<ImageFormat> color_attachment_formats;
-        std::vector<VertexFormat> vertex_binding_formats;
-        // depth_format ignore if !(depth_test || depth_write) 
-        ImageFormat depth_stencil_format;
-        CompareOp depth_test_compare_op;
-        PolygonMode polygone_mode;
-        CullMode cull_mode;
-        FrontFace front_face;
-        PrimitiveTopology topology;
-        //msaa none is SampleCount::e1
-        SampleCount msaa = SampleCount::e1;
-        // if depth_test false ignore
-        // depth_load_op
-        // depth_test_compare_op
-        bool depth_test : 1;
-        // if stencil_test false ignore
-        // depth_store_op
-        // depth_test_compare_op
-        bool depth_write : 1;
-        // if stencil_test false ignore
-        // stencil_format
-        // stencil_store_op, stencil_load_op
-        bool stencil_test : 1;
-        bool color_blend : 1;
     };
 
     struct VertexBinding {
@@ -638,7 +561,7 @@ namespace DnmGL {
     };
 
     struct InputAssemblyDesc {
-        std::span<const VertexBinding> vertex_binding_formats;
+        std::span<const VertexBinding> vertex_bindings;
         PrimitiveTopology topology;
     };
 
@@ -650,7 +573,7 @@ namespace DnmGL {
         bool stencil_test : 1;
     };
 
-    struct NewGraphicsPipelineDesc {
+    struct GraphicsPipelineDesc {
         std::string shader_name;
         ResterizerDesc *resterizer_desc;
         InputAssemblyDesc *input_assembly_desc;
@@ -662,7 +585,6 @@ namespace DnmGL {
         Shader *shader;
         ResourceManager *resource_manager;
     };
-
     struct BufferToBufferCopyDesc {
         Buffer *src_buffer;
         Buffer *dst_buffer;
@@ -731,6 +653,17 @@ namespace DnmGL {
         DnmGL::Framebuffer *framebuffer;
         DnmGL::DepthStencilClearValue depth_stencil_clear_value;
         AttachmentOps attachment_ops;
+    };
+
+    struct BufferResourceDesc {
+        DnmGL::Buffer *buffer;
+        uint32_t first_element;
+        uint32_t element_count;
+    };
+
+    struct ImageResourceDesc {
+        DnmGL::Image *image;
+        ImageSubresource subresource;
     };
 
     enum class MessageType {
@@ -832,78 +765,6 @@ namespace DnmGL {
     extern "C" DNMGL_API DnmGL::Context *CreateD3D12Context();
     extern "C" DNMGL_API DnmGL::Context *CreateMetalContext();
 
-    class DNMGL_API Context {
-        void CreateShaderCompiler();
-        void DestroyShaderCompiler();
-    public:
-        Context() { CreateShaderCompiler(); }
-        virtual ~Context() { DestroyShaderCompiler(); };
-
-        [[nodiscard]] virtual GraphicsBackend GetGraphicsBackend() const noexcept = 0;
-
-        void Init(const ContextDesc &);
-        void SetSwapchainSettings(const SwapchainSettings &settings);
-
-        //offline rendering
-        virtual void ExecuteCommands(const std::function<bool(CommandBuffer*)>& func) = 0;
-        //ExecuteCommands + present image
-        virtual void Render(const std::function<bool(CommandBuffer*)>& func) = 0;
-        virtual void WaitForGPU() = 0;
-
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Buffer> CreateBuffer(const DnmGL::BufferDesc &) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Image> CreateImage(const DnmGL::ImageDesc &) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Sampler> CreateSampler(const DnmGL::SamplerDesc &) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Shader> CreateShader(std::string_view) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::ResourceManager> CreateResourceManager(std::span<const DnmGL::Shader*>) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::ComputePipeline> CreateComputePipeline(const DnmGL::ComputePipelineDesc &) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::GraphicsPipeline> CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc &) noexcept = 0;
-        [[nodiscard]] virtual std::unique_ptr<DnmGL::Framebuffer> CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept = 0;
-        [[nodiscard]] virtual ContextState GetContextState() noexcept = 0;
-        
-        //compile shader and add cache if shader exists override shader data in cache
-        bool CompileShader(std::string_view shader_name) const noexcept;
-        //write shader data to shader_name.dnmShader if not exists get shader data from shader and write
-        bool WriteShaderData(std::string_view shader_name) const noexcept;
-
-        //TODO: this funcs might be private
-        //TODO: this func return be ShaderData
-        //if shader data exists in shader folder read if not exists compile
-        void ReadOrCompileShader(std::string_view shader_name) const noexcept;
-
-        [[nodiscard]] constexpr DnmGL::Image *GetPlaceholderImage() const noexcept { return placeholder_image; };
-        [[nodiscard]] constexpr DnmGL::Sampler *GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
-        [[nodiscard]] constexpr const std::filesystem::path& GetShaderDirectory() const noexcept { return shader_directory; };
-        [[nodiscard]] constexpr const auto& GetSwapchainSettings() const noexcept { return swapchain_settings; };
-        [[nodiscard]] constexpr std::filesystem::path GetShaderPath(std::string_view filename) const noexcept;
-        constexpr void SetCallbackFunc(CallbackFunc func) noexcept { callback_func.swap(func); };
-        constexpr void Message(
-            std::string_view message, 
-            MessageType error,
-            std::string_view source = std::source_location::current().function_name()) {
-            if (callback_func) callback_func(message, error, source);
-        };
-    protected:
-        virtual void IInit(const ContextDesc &) = 0;
-        virtual void ISetSwapchainSettings(const SwapchainSettings &settings) = 0;
-
-        DnmGL::Image *placeholder_image{};
-        DnmGL::Sampler *placeholder_sampler{};
-        CallbackFunc callback_func{};
-        std::filesystem::path shader_directory{};
-        SwapchainSettings swapchain_settings{};
-
-        ShaderCompiler *shader_compiler;
-    };
-
-    constexpr std::filesystem::path Context::GetShaderPath(std::string_view filename) const noexcept {
-        return shader_directory / filename += ".slang";
-
-        switch (GetGraphicsBackend()) {
-            case GraphicsBackend::eVulkan: return shader_directory / "Vulkan" / filename += ".spv";
-            case GraphicsBackend::eD3D12: return shader_directory / "D3D12" / filename += ".dxil";
-        }
-    };
-
     class RHIObject {
     public:
         constexpr RHIObject(Context &context) noexcept
@@ -988,58 +849,6 @@ namespace DnmGL {
         DnmGL::SamplerDesc m_desc;
     };
 
-    class Shader : public RHIObject {
-    public:
-        using Ptr = std::unique_ptr<DnmGL::Shader>;
-        constexpr Shader(Context& context, std::string_view filename) noexcept;
-        virtual ~Shader() = default;
-
-        [[nodiscard]] constexpr const auto& GetFilename() const noexcept { return m_filename; }
-        [[nodiscard]] constexpr std::filesystem::path GetFilePath() const noexcept { return context->GetShaderPath(m_filename); }
-        [[nodiscard]] constexpr std::span<const EntryPointInfo> GetEntryPoints() const noexcept { return m_entry_point_infos; }
-        [[nodiscard]] constexpr const EntryPointInfo *GetEntryPoint(std::string_view name) const noexcept;
-    protected:
-        const std::string m_filename;
-        std::vector<EntryPointInfo> m_entry_point_infos;
-    };
-
-    class ResourceManager : public RHIObject {
-    public:
-        using Ptr = std::unique_ptr<DnmGL::ResourceManager>;
-        constexpr ResourceManager(Context& context, std::span<const DnmGL::Shader*> shaders) noexcept
-            : RHIObject(context), 
-            m_shaders(shaders.begin(), shaders.end()) {}
-        virtual ~ResourceManager() = default;
-
-        void SetReadonlyResource(std::span<const ResourceDesc> update_resource);
-        void SetWritableResource(std::span<const ResourceDesc> update_resource);
-        void SetUniformResource(std::span<const UniformResourceDesc> update_resource);
-        void SetSamplerResource(std::span<const SamplerResourceDesc> update_resource);
-
-        [[nodiscard]] constexpr const auto& GetShaders() const noexcept { return m_shaders; }
-
-        [[nodiscard]] constexpr auto GetReadonlyResources() const noexcept { return std::span(m_readonly_resource_bindings); }
-        [[nodiscard]] constexpr auto GetWritableResources() const noexcept { return std::span(m_writable_resource_bindings); }
-        [[nodiscard]] constexpr auto GetUniformResources() const noexcept { return std::span(m_uniform_resource_bindings); }
-        [[nodiscard]] constexpr auto GetSamplerResources() const noexcept { return std::span(m_sampler_resource_bindings); }
-
-        [[nodiscard]] constexpr const BindingInfo *GetReadonlyResourcesBinding(uint32_t i) const noexcept;
-        [[nodiscard]] constexpr const BindingInfo *GetWritableResourcesBinding(uint32_t i) const noexcept;
-        [[nodiscard]] constexpr const BindingInfo *GetUniformResourcesBinding(uint32_t i) const noexcept;
-        [[nodiscard]] constexpr const BindingInfo *GetSamplerResourcesBinding(uint32_t i) const noexcept;
-    protected:
-        virtual void ISetReadonlyResource(std::span<const ResourceDesc> update_resource) = 0;
-        virtual void ISetWritableResource(std::span<const ResourceDesc> update_resource) = 0;
-        virtual void ISetUniformResource(std::span<const UniformResourceDesc> update_resource) = 0;
-        virtual void ISetSamplerResource(std::span<const SamplerResourceDesc> update_resource) = 0;
-
-        const std::vector<const Shader*> m_shaders;
-        std::vector<BindingInfo> m_readonly_resource_bindings;
-        std::vector<BindingInfo> m_writable_resource_bindings;
-        std::vector<BindingInfo> m_uniform_resource_bindings;
-        std::vector<BindingInfo> m_sampler_resource_bindings;
-    };
-
     class GraphicsPipeline : public RHIObject {
     public:
         using Ptr = std::unique_ptr<DnmGL::GraphicsPipeline>;
@@ -1047,39 +856,50 @@ namespace DnmGL {
         
         virtual ~GraphicsPipeline() = default;
 
-        /*
-            struct BufferResourceDesc {
-                const DnmGL::Buffer *buffer;
-                uint32_t first_element;
-                uint32_t element_count;
-            };
-
-            void SetResource(std::string_view resource_name, const DnmGL::Buffer *buffer, uint32_t array_index);
-            void SetResource(std::string_view resource_name, const DnmGL::Image *image, uint32_t element_index);
-            void SetResource(std::string_view resource_name, const DnmGL::Sampler *sampler, uint32_t element_index);
-        */
-
-        [[nodiscard]] constexpr auto HasMsaa() const noexcept { return m_desc.msaa != SampleCount::e1; }
-        [[nodiscard]] constexpr auto HasDepthAttachment() const noexcept { return has_depth_attachment; }
-        [[nodiscard]] constexpr auto HasStencilAttachment() const noexcept { return has_stencil_attachment; }
-        [[nodiscard]] constexpr auto ColorAttachmentCount() const noexcept { return m_desc.color_attachment_formats.size(); }
+        void SetResource(std::string_view resource_name, const BufferResourceDesc &buffer_desc, uint32_t array_index);
+        void SetResource(std::string_view resource_name, const ImageResourceDesc &image_desc, uint32_t array_index);
+        void SetResource(std::string_view resource_name, const DnmGL::Sampler *sampler, uint32_t array_index);
 
         [[nodiscard]] constexpr const auto& GetDesc() const noexcept { return m_desc; }
+        [[nodiscard]] constexpr auto HasMsaa() const noexcept { return m_resterizer_desc.msaa != SampleCount::e1; }
+        [[nodiscard]] constexpr auto HasDepthAttachment() const noexcept { return has_depth_attachment; }
+        [[nodiscard]] constexpr auto HasStencilAttachment() const noexcept { return has_stencil_attachment; }
+        [[nodiscard]] constexpr auto ColorAttachmentCount() const noexcept { return m_color_attachment_formats.size(); }
     protected:
+        virtual void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) = 0;
+        virtual void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) = 0;
+        virtual void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) = 0;
+
+        const ShaderData *m_shader_data;
         GraphicsPipelineDesc m_desc;
+        ResterizerDesc m_resterizer_desc;
+        InputAssemblyDesc m_input_assambly_desc;
+        DepthStencilDesc m_depth_stencil_desc;
+        std::vector<ImageFormat> m_color_attachment_formats;
+        std::vector<VertexBinding> m_vertex_bindings;
+
         bool has_depth_attachment : 1{};
         bool has_stencil_attachment : 1{};
     };
 
     class ComputePipeline : public RHIObject {
     public:
-        using Ptr = std::unique_ptr<DnmGL::ComputePipeline>;
-        constexpr ComputePipeline(Context& context, const ComputePipelineDesc& desc) noexcept;
+        using Ptr = std::unique_ptr<ComputePipeline>;
+        constexpr ComputePipeline(Context& context, std::string_view shader_name) noexcept;
         virtual ~ComputePipeline() = default;
 
-        [[nodiscard]] constexpr const auto& GetDesc() const noexcept { return m_desc; }
+        void SetResource(std::string_view resource_name, const BufferResourceDesc &buffer_desc, uint32_t array_index);
+        void SetResource(std::string_view resource_name, const ImageResourceDesc &image_desc, uint32_t array_index);
+        void SetResource(std::string_view resource_name, const DnmGL::Sampler *sampler, uint32_t array_index);
+
+        [[nodiscard]] constexpr std::string_view GetShader() const noexcept { return m_shader_name; }
     protected:
-        ComputePipelineDesc m_desc;
+        virtual void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) = 0;
+        virtual void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) = 0;
+        virtual void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) = 0;
+
+        const std::string m_shader_name;
+        const ShaderData *m_shader_data;
     };
 
     class CommandBuffer : public RHIObject {
@@ -1101,11 +921,10 @@ namespace DnmGL {
         void BeginComputePass();
         void EndComputePass();
 
-        void BindPipeline(const DnmGL::ComputePipeline *pipeline);
-
         void Draw(uint32_t vertex_count, uint32_t instance_count);
         void DrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset);
-        void Dispatch(uint32_t x = 1, uint32_t y = 1, uint32_t z = 1);
+
+        void ComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x = 1, uint16_t y = 1, uint16_t z = 1);
 
         void SetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth);
         void SetScissor(Uint2 extent, Uint2 offset);
@@ -1123,7 +942,7 @@ namespace DnmGL {
         template <typename T> void UploadData(DnmGL::Buffer *buffer, std::span<const T> data, uint32_t offset);
         //TODO: maybe has UploadImageData struct
         template <typename T> void UploadData(DnmGL::Image *image, 
-                                                const ImageSubresource& subresource,
+                                                ImageSubresource subresource,
                                                 std::span<const T> data, 
                                                 Uint3 copy_extent, 
                                                 Uint3 copy_offset);
@@ -1134,7 +953,7 @@ namespace DnmGL {
         virtual void IEnd() = 0;
 
         virtual void IUploadData(DnmGL::Image *image, 
-                                const ImageSubresource& subresource, 
+                                ImageSubresource subresource, 
                                 const void *data, 
                                 Uint3 copy_extent, 
                                 Uint3 copy_offset) = 0;
@@ -1149,11 +968,9 @@ namespace DnmGL {
         virtual void IBeginComputePass() = 0;
         virtual void IEndComputePass() = 0;
 
-        virtual void IBindPipeline(const DnmGL::ComputePipeline *pipeline) = 0;
-
         virtual void IDraw(uint32_t vertex_count, uint32_t instance_count) = 0;
         virtual void IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) = 0;
-        virtual void IDispatch(uint32_t x = 1, uint32_t y = 1, uint32_t z = 1) = 0;
+        virtual void IComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x = 1, uint16_t y = 1, uint16_t z = 1) = 0;
 
         virtual void ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) = 0;
         virtual void ISetScissor(Uint2 extent, Uint2 offset) = 0;
@@ -1173,6 +990,72 @@ namespace DnmGL {
         ComputePipeline *active_compute_pipeline{};
         GraphicsPipeline *active_graphics_pipeline{};
         Framebuffer *active_framebuffer{};
+    };
+
+    class DNMGL_API Context {
+        void CreateShaderCompiler();
+        void DestroyShaderCompiler();
+    public:
+        Context() { CreateShaderCompiler(); }
+        virtual ~Context() { DestroyShaderCompiler(); };
+
+        [[nodiscard]] virtual GraphicsBackend GetGraphicsBackend() const noexcept = 0;
+
+        void Init(const ContextDesc &);
+        void SetSwapchainSettings(const SwapchainSettings &settings);
+
+        //offline rendering
+        virtual void ExecuteCommands(const std::function<bool(CommandBuffer*)>& func) = 0;
+        //ExecuteCommands + present image
+        virtual void Render(const std::function<bool(CommandBuffer*)>& func) = 0;
+        virtual void WaitForGPU() = 0;
+
+        [[nodiscard]] virtual DnmGL::Buffer::Ptr CreateBuffer(const DnmGL::BufferDesc &) noexcept = 0;
+        [[nodiscard]] virtual DnmGL::Image::Ptr CreateImage(const DnmGL::ImageDesc &) noexcept = 0;
+        [[nodiscard]] virtual DnmGL::Sampler::Ptr CreateSampler(const DnmGL::SamplerDesc &) noexcept = 0;
+        [[nodiscard]] virtual DnmGL::Framebuffer::Ptr CreateFramebuffer(const DnmGL::FramebufferDesc &) noexcept = 0;
+        [[nodiscard]] virtual DnmGL::GraphicsPipeline::Ptr CreateGraphicsPipeline(const DnmGL::GraphicsPipelineDesc &) noexcept = 0;
+        [[nodiscard]] virtual DnmGL::ComputePipeline::Ptr CreateComputePipeline(std::string_view) noexcept = 0;
+        [[nodiscard]] virtual ContextState GetContextState() noexcept = 0;
+        
+        //compile shader and add cache if shader exists override shader data in cache
+        bool CompileShader(std::string_view shader_name) const noexcept;
+        //write shader data to shader_name.dnmShader if not exists get shader data from shader and write
+        bool WriteShaderData(std::string_view shader_name) const noexcept;
+
+        //TODO: this funcs must be private
+        //TODO: this func return be ShaderData
+        //if shader data exists in shader folder read if not exists compile
+        [[nodiscard]] std::expected<const ShaderData *, std::string> ReadOrCompileShader(std::string_view shader_name) const noexcept;
+
+        [[nodiscard]] constexpr DnmGL::Image *GetPlaceholderImage() const noexcept { return placeholder_image; };
+        [[nodiscard]] constexpr DnmGL::Sampler *GetPlaceholderSampler() const noexcept { return placeholder_sampler; };
+        [[nodiscard]] constexpr const std::filesystem::path& GetShaderDirectory() const noexcept { return shader_directory; };
+        [[nodiscard]] constexpr const auto& GetSwapchainSettings() const noexcept { return swapchain_settings; };
+        [[nodiscard]] constexpr std::filesystem::path GetShaderPath(std::string_view filename) const noexcept;
+        constexpr void SetCallbackFunc(CallbackFunc func) noexcept { callback_func.swap(func); };
+        constexpr void Message(
+            std::string_view message, 
+            MessageType error,
+            std::string_view source = std::source_location::current().function_name()) const {
+            if (callback_func) callback_func(message, error, source);
+        };
+    protected:
+        virtual void IInit(const ContextDesc &) = 0;
+        virtual void ISetSwapchainSettings(const SwapchainSettings &settings) = 0;
+
+        DnmGL::Image *placeholder_image{};
+        DnmGL::Sampler *placeholder_sampler{};
+        CallbackFunc callback_func{};
+        std::filesystem::path shader_directory{};
+        SwapchainSettings swapchain_settings{};
+
+        ShaderCompiler *shader_compiler;
+    };
+
+    //TODO: fill this
+    constexpr void IsValidImageSubresource(const DnmGL::Image &image, ImageSubresource subresource) noexcept {
+        DnmGLAssert(true, "fmt, ...");
     };
 
     inline void CommandBuffer::Begin() {
@@ -1248,13 +1131,6 @@ namespace DnmGL {
         active_pass = CommandBufferPassType::eNone;
     }
 
-    inline void CommandBuffer::BindPipeline(const DnmGL::ComputePipeline *pipeline) {
-        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, "this function must be call in compute pass")
-        DnmGLAssert(pipeline, "pipeline cannot be null")
-
-        IBindPipeline(pipeline);
-    }
-
     inline void CommandBuffer::Draw(uint32_t vertex_count, uint32_t instance_count) {
         DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
 
@@ -1269,14 +1145,6 @@ namespace DnmGL {
             IDrawIndexed(index_count, instance_count, vertex_offset);
     }
 
-    inline void CommandBuffer::Dispatch(uint32_t x, uint32_t y, uint32_t z) {
-        DnmGLAssert(active_pass == CommandBufferPassType::eCompute, "this function must be call in compute pass")
-        DnmGLAssert(active_compute_pipeline, "there is no binded compute pipeline")
-
-        if (x && y && z)
-            IDispatch(z, y, z);
-    }
-    
     inline void CommandBuffer::SetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) {
         //TODO: check bounds
         DnmGLAssert(active_pass == CommandBufferPassType::eRendering, "this function must be call in rendering pass")
@@ -1360,7 +1228,7 @@ namespace DnmGL {
 
     template <typename T> 
     inline void CommandBuffer::UploadData(DnmGL::Image *image, 
-                                            const ImageSubresource& subresource, 
+                                            ImageSubresource subresource, 
                                             std::span<const T> data, 
                                             Uint3 copy_extent, 
                                             Uint3 copy_offset) {
@@ -1387,6 +1255,15 @@ namespace DnmGL {
                                 "type if ImageType::e1D, x and z extent is must be 1 (1D arrays not supported)")
         }
     }
+
+    constexpr std::filesystem::path Context::GetShaderPath(std::string_view filename) const noexcept {
+        return shader_directory / filename += ".slang";
+
+        switch (GetGraphicsBackend()) {
+            case GraphicsBackend::eVulkan: return shader_directory / "Vulkan" / filename += ".spv";
+            case GraphicsBackend::eD3D12: return shader_directory / "D3D12" / filename += ".dxil";
+        }
+    };
 
     inline void Context::Init(const ContextDesc &desc) {
         //TODO: make for other os'es
@@ -1417,6 +1294,14 @@ namespace DnmGL {
         ISetSwapchainSettings(settings);
     }
 
+    inline void CommandBuffer::ComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x, uint16_t y, uint16_t z) {
+        DnmGLAssert(pipeline, "pipeline cannot be nullptr")
+
+        //TODO: check for kernel
+
+        IComputeDispatch(pipeline, kernel, x, y, z);
+    }
+
     template <typename T>
     constexpr T *Buffer::GetMappedPtr() const noexcept {
         DnmGLAssert(m_desc.memory_host_access != MemoryHostAccess::eNone, 
@@ -1425,73 +1310,52 @@ namespace DnmGL {
         return reinterpret_cast<T *>(m_mapped_ptr);
     }
 
-    constexpr Buffer::Buffer(Context& context, const DnmGL::BufferDesc& desc) noexcept : RHIObject(context), m_desc(desc) {
+    constexpr Buffer::Buffer(Context& ctx, const DnmGL::BufferDesc& desc) noexcept : RHIObject(ctx), m_desc(desc) {
         if (m_desc.usage_flags.Has(BufferUsageBits::eUniform)) m_desc.element_size = (m_desc.element_size + 255) & ~255;
         if (m_desc.element_size < 4) m_desc.element_size = 4;
     }
 
     constexpr GraphicsPipeline::GraphicsPipeline(Context& ctx, const GraphicsPipelineDesc& desc) noexcept
     : RHIObject(ctx), m_desc(desc) {
-        DnmGLAssert(m_desc.resource_manager, "resource manager can not be null")
+        const auto shader_data = ctx.ReadOrCompileShader(desc.shader_name);
+        if (!shader_data.has_value()) ctx.Message(shader_data.error(), 
+            MessageType::eShaderCompilationFailed);
 
-        DnmGLAssert(context == m_desc.resource_manager->context, "pipeline and resource manager must be created from the same context")
+        m_shader_data = shader_data.value();
+        DnmGLAssert(m_shader_data->reflection.shader_type == ShaderType::eGraphicsShader, "shader must be eGraphicsShader");
 
-        if (IsDepthFormat(m_desc.depth_stencil_format)) {
-            has_depth_attachment = true;
-        }
-        if (IsDepthStencilFormat(m_desc.depth_stencil_format)) {
-            has_stencil_attachment = true;
-            has_depth_attachment = true;
-        }
+        m_vertex_bindings.insert(
+            m_vertex_bindings.begin(), 
+            m_desc.input_assembly_desc->vertex_bindings.data(),
+            m_desc.input_assembly_desc->vertex_bindings.data() + m_desc.input_assembly_desc->vertex_bindings.size());
+        m_color_attachment_formats.insert(
+            m_color_attachment_formats.begin(), 
+            m_desc.resterizer_desc->color_attachment_formats.data(),
+            m_desc.resterizer_desc->color_attachment_formats.data() + m_desc.resterizer_desc->color_attachment_formats.size());
 
-        {
-            bool vertex_shader_is_there{};
-            bool fragment_shader_is_there{};
+        m_input_assambly_desc = *m_desc.input_assembly_desc;
+        m_resterizer_desc = *m_desc.resterizer_desc;
+        m_depth_stencil_desc = *m_desc.depth_stencil_desc;
+        m_resterizer_desc.color_attachment_formats = m_color_attachment_formats;
+        m_input_assambly_desc.vertex_bindings = m_vertex_bindings;
 
-            for (const auto *shader : m_desc.resource_manager->GetShaders()) {
-                vertex_shader_is_there |= m_desc.vertex_shader == shader;
-                fragment_shader_is_there |= m_desc.fragment_shader == shader;
-            }
-            
-            DnmGLAssert(vertex_shader_is_there, "vertex shader must be in resource manager")
-            DnmGLAssert(fragment_shader_is_there, "fragment shader must be in resource manager")
-        }
-        const auto *vertex_entry_point = m_desc.vertex_shader->GetEntryPoint(m_desc.vertex_entry_point);
-        DnmGLAssert(vertex_entry_point, "vertex entry point is not in the vertex shader; entry point: {}", m_desc.vertex_entry_point);
-        DnmGLAssert(vertex_entry_point->shader_stage == ShaderStageBits::eVertex,
-            "vertex entry point, stage must be vertex; entry point: {}", m_desc.vertex_entry_point);
+        m_desc.resterizer_desc = &m_resterizer_desc;
+        m_desc.depth_stencil_desc = &m_depth_stencil_desc;
+        m_desc.input_assembly_desc = &m_input_assambly_desc;
 
-        const auto *fragment_entry_point = m_desc.vertex_shader->GetEntryPoint(m_desc.fragment_entry_point);
-        DnmGLAssert(fragment_entry_point, "fragment entry point is not in the fragment shader; entry point: {}", m_desc.fragment_entry_point);
-        DnmGLAssert(fragment_entry_point->shader_stage == ShaderStageBits::eFragment,
-            "fragment entry point, stage must be fragment; entry point: {}", m_desc.fragment_entry_point);
+        has_depth_attachment = IsDepthFormat(m_depth_stencil_desc.depth_stencil_format);
+        has_stencil_attachment = IsDepthStencilFormat(m_depth_stencil_desc.depth_stencil_format);
+        //TODO: check somethings
     }
 
-    constexpr ComputePipeline::ComputePipeline(Context& ctx, const ComputePipelineDesc& desc) noexcept
-    : RHIObject(ctx), m_desc(desc) {
-        DnmGLAssert(m_desc.resource_manager, "resource manager can not be null")
+    constexpr ComputePipeline::ComputePipeline(Context& ctx, std::string_view shader) noexcept
+    : RHIObject(ctx), m_shader_name(shader) {
+        const auto shader_data = ctx.ReadOrCompileShader(shader);
+        if (!shader_data.has_value()) ctx.Message(shader_data.error(), 
+            MessageType::eShaderCompilationFailed);
         
-        DnmGLAssert(context == m_desc.resource_manager->context, "pipeline and resource manager must be created from the same context")
-        {
-            bool shader_is_there = false;
-
-            for (const auto *shader : m_desc.resource_manager->GetShaders())
-                shader_is_there |= m_desc.shader == shader;
-
-            DnmGLAssert(shader_is_there, "shader must be in resource manager")
-        }
-        const auto *shader_entry_point = m_desc.shader->GetEntryPoint(m_desc.shader_entry_point);
-        DnmGLAssert(shader_entry_point, "entry point is not in the shader; entry point: {}", m_desc.shader_entry_point);
-        DnmGLAssert(shader_entry_point->shader_stage == ShaderStageBits::eCompute,
-            "entry point, stage must be compute; entry point: {}", m_desc.shader_entry_point);
-    }
-
-    constexpr Shader::Shader(Context& context, std::string_view filename) noexcept
-        : RHIObject(context), m_filename(filename) {
-        const auto file = context.GetShaderPath(filename);
-        if (!std::filesystem::exists(file))
-            context.Message(std::format("shader file not exists, file: {}", std::filesystem::absolute(file).string()), 
-                MessageType::eInvalidBehavior);
+        m_shader_data = shader_data.value();
+        DnmGLAssert(m_shader_data->reflection.shader_type == ShaderType::eComputeShader, "shader must be eComputeShader");
     }
 
     constexpr Framebuffer::Framebuffer(Context& context, const DnmGL::FramebufferDesc& desc) noexcept
@@ -1532,6 +1396,249 @@ namespace DnmGL {
         }
 
         ISetAttachments(color_attachments, depth_stencil_attachment);
+    }
+
+    inline void ComputePipeline::SetResource(std::string_view resource_name, const BufferResourceDesc &buffer_desc, uint32_t array_index) {
+        DnmGLAssert(buffer_desc.buffer, "buffer cannot be nullptr");
+        DnmGLAssert(context == buffer_desc.buffer->context, "buffer and pipeline must use the same context");
+
+        const auto it = m_shader_data->reflection.resources.find(std::string(resource_name));
+        if (it == m_shader_data->reflection.resources.end()) {
+            context->Message("resource not found, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        const auto &resource = it->second;
+
+        if (array_index >= resource.resource_count) {
+            context->Message("array index must be less than resource count, resource name:" 
+                + std::string(resource_name), MessageType::eWarning);
+                return;
+        }
+
+        if (resource.type == ResourceType::eReadonlyBuffer) {
+            if (!buffer_desc.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eReadonlyResource)) {
+                context->Message("buffer must be have BufferUsageBits::eReadonlyResource, resource name:" 
+                                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else if (resource.type == ResourceType::eWritableBuffer) {
+            if (!buffer_desc.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eWritebleResource)) {
+                context->Message("buffer must be have BufferUsageBits::eWritebleResource, resource name:" 
+                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else if (resource.type == ResourceType::eUniformBuffer) {
+            if (!buffer_desc.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eUniform)) {
+                context->Message("buffer must be have BufferUsageBits::eUniform, resource name:" 
+                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else {
+            context->Message("resource type is not buffer, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        if (buffer_desc.buffer->GetDesc().element_count < buffer_desc.first_element + buffer_desc.element_count) {
+            context->Message("first_element + element_count less than element count, resource name:"
+                + std::string(resource_name), MessageType::eWarning);
+            return;            
+        }
+
+        ISetResource(resource, buffer_desc, array_index);
+    }
+
+    inline void ComputePipeline::SetResource(std::string_view resource_name, const ImageResourceDesc &image_desc, uint32_t array_index) {
+        DnmGLAssert(image_desc.image, "image cannot be nullptr");
+        DnmGLAssert(context == image_desc.image->context, "image and pipeline must use the same context");
+
+        const auto it = m_shader_data->reflection.resources.find(std::string(resource_name));
+        if (it == m_shader_data->reflection.resources.end()) {
+            context->Message("resource not found, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        const auto &resource = it->second;
+
+        if (array_index >= resource.resource_count) {
+            context->Message("array index must be less than resource count, resource name:" 
+                + std::string(resource_name), MessageType::eWarning);
+                return;
+        }
+
+        if (resource.type == ResourceType::eReadonlyImage) {
+            if (!image_desc.image->GetDesc().usage_flags.Has(ImageUsageBits::eReadonlyResource)) {
+                context->Message("image must be have imageUsageBits::eReadonlyResource, resource name:" 
+                                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else if (resource.type == ResourceType::eWritableImage) {
+            if (!image_desc.image->GetDesc().usage_flags.Has(ImageUsageBits::eWritebleResource)) {
+                context->Message("image must be have imageUsageBits::eWritebleResource, resource name:" 
+                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else {
+            context->Message("resource type is not image, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        IsValidImageSubresource(*image_desc.image, image_desc.subresource);
+
+        ISetResource(resource, image_desc, array_index);
+    }
+
+    inline void ComputePipeline::SetResource(std::string_view resource_name, const DnmGL::Sampler *sampler, uint32_t array_index) {
+        DnmGLAssert(sampler, "sampler cannot be nullptr");
+        DnmGLAssert(context == sampler->context, "sampler and pipeline must use the same context");
+
+        const auto it = m_shader_data->reflection.resources.find(std::string(resource_name));
+        if (it == m_shader_data->reflection.resources.end()) {
+            context->Message("resource not found, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        const auto &resource = it->second;
+
+        if (array_index >= resource.resource_count) {
+            context->Message("array index must be less than resource count, resource name:" 
+                + std::string(resource_name), MessageType::eWarning);
+                return;
+        }
+
+        if (resource.type != ResourceType::eSampler) {
+            context->Message("resource type is not image, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        ISetResource(resource, sampler, array_index);
+    }
+
+
+    inline void GraphicsPipeline::SetResource(std::string_view resource_name, const BufferResourceDesc &buffer_desc, uint32_t array_index) {
+        DnmGLAssert(buffer_desc.buffer, "buffer cannot be nullptr");
+        DnmGLAssert(context == buffer_desc.buffer->context, "buffer and pipeline must use the same context");
+
+        const auto it = m_shader_data->reflection.resources.find(std::string(resource_name));
+        if (it == m_shader_data->reflection.resources.end()) {
+            context->Message("resource not found, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        const auto &resource = it->second;
+
+        if (array_index >= resource.resource_count) {
+            context->Message("array index must be less than resource count, resource name:" 
+                + std::string(resource_name), MessageType::eWarning);
+                return;
+        }
+
+        if (resource.type == ResourceType::eReadonlyBuffer) {
+            if (!buffer_desc.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eReadonlyResource)) {
+                context->Message("buffer must be have BufferUsageBits::eReadonlyResource, resource name:" 
+                                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else if (resource.type == ResourceType::eWritableBuffer) {
+            if (!buffer_desc.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eWritebleResource)) {
+                context->Message("buffer must be have BufferUsageBits::eWritebleResource, resource name:" 
+                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else if (resource.type == ResourceType::eUniformBuffer) {
+            if (!buffer_desc.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eUniform)) {
+                context->Message("buffer must be have BufferUsageBits::eUniform, resource name:" 
+                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else {
+            context->Message("resource type is not buffer, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        if (buffer_desc.buffer->GetDesc().element_count < buffer_desc.first_element + buffer_desc.element_count) {
+            context->Message("first_element + element_count less than element count, resource name:"
+                + std::string(resource_name), MessageType::eWarning);
+            return;            
+        }
+
+        ISetResource(resource, buffer_desc, array_index);
+    }
+
+    inline void GraphicsPipeline::SetResource(std::string_view resource_name, const ImageResourceDesc &image_desc, uint32_t array_index) {
+        DnmGLAssert(image_desc.image, "image cannot be nullptr");
+        DnmGLAssert(context == image_desc.image->context, "image and pipeline must use the same context");
+
+        const auto it = m_shader_data->reflection.resources.find(std::string(resource_name));
+        if (it == m_shader_data->reflection.resources.end()) {
+            context->Message("resource not found, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        const auto &resource = it->second;
+
+        if (array_index >= resource.resource_count) {
+            context->Message("array index must be less than resource count, resource name:" 
+                + std::string(resource_name), MessageType::eWarning);
+                return;
+        }
+
+        if (resource.type == ResourceType::eReadonlyImage) {
+            if (!image_desc.image->GetDesc().usage_flags.Has(ImageUsageBits::eReadonlyResource)) {
+                context->Message("image must be have imageUsageBits::eReadonlyResource, resource name:" 
+                                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else if (resource.type == ResourceType::eWritableImage) {
+            if (!image_desc.image->GetDesc().usage_flags.Has(ImageUsageBits::eWritebleResource)) {
+                context->Message("image must be have imageUsageBits::eWritebleResource, resource name:" 
+                    + std::string(resource_name), MessageType::eWarning);
+                return;
+            }
+        }
+        else {
+            context->Message("resource type is not image, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        IsValidImageSubresource(*image_desc.image, image_desc.subresource);
+
+        ISetResource(resource, image_desc, array_index);
+    }
+
+    inline void GraphicsPipeline::SetResource(std::string_view resource_name, const DnmGL::Sampler *sampler, uint32_t array_index) {
+        DnmGLAssert(sampler, "sampler cannot be nullptr");
+        DnmGLAssert(context == sampler->context, "sampler and pipeline must use the same context");
+
+        const auto it = m_shader_data->reflection.resources.find(std::string(resource_name));
+        if (it == m_shader_data->reflection.resources.end()) {
+            context->Message("resource not found, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        const auto &resource = it->second;
+
+        if (array_index >= resource.resource_count) {
+            context->Message("array index must be less than resource count, resource name:" 
+                + std::string(resource_name), MessageType::eWarning);
+                return;
+        }
+
+        if (resource.type != ResourceType::eSampler) {
+            context->Message("resource type is not image, resource name:" + std::string(resource_name), MessageType::eWarning);
+            return;
+        }
+
+        ISetResource(resource, sampler, array_index);
     }
 
     constexpr void Framebuffer::IsValidColorAttachment(const Image *image, uint32_t i) const noexcept {
@@ -1579,130 +1686,16 @@ namespace DnmGL {
     
         if (desc.framebuffer)
             for (const auto i : Counter(desc.pipeline->ColorAttachmentCount())) {
-                DnmGLAssert(desc.pipeline->GetDesc().color_attachment_formats[i] == desc.framebuffer->GetDesc().color_attachment_formats[i], 
+                DnmGLAssert(desc.pipeline->GetDesc().resterizer_desc->color_attachment_formats[i] == desc.framebuffer->GetDesc().color_attachment_formats[i], 
                 "framebuffer and pipeline formats must be same")
             }
-        else DnmGLAssert(desc.pipeline->GetDesc().color_attachment_formats[0] == ImageFormat::eRGBA8Norm, 
+        else DnmGLAssert(desc.pipeline->GetDesc().resterizer_desc->color_attachment_formats[0] == ImageFormat::eRGBA8Norm, 
                         "if using default framebuffer, color attachment format ImageFormat::eRGBA8Norm")
 
-        if (desc.framebuffer) DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == desc.framebuffer->GetDesc().depth_stencil_format, 
+        if (desc.framebuffer) DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_desc->depth_stencil_format == desc.framebuffer->GetDesc().depth_stencil_format, 
                             "framebuffer and pipeline formats must be same")
-        else DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_format == context->GetSwapchainSettings().depth_buffer_format, 
+        else DnmGLAssert(desc.pipeline->GetDesc().depth_stencil_desc->depth_stencil_format == context->GetSwapchainSettings().depth_buffer_format, 
                             "if using default framebuffer, depth stencil attachment format must same with GetSwapchainSettings().depth_buffer_format")
-    }
-
-    inline void ResourceManager::SetReadonlyResource(std::span<const ResourceDesc> update_resource) {
-        for (const auto i : Counter(update_resource.size())) {
-            const auto &resource = update_resource[i];
-            const auto *binding = GetReadonlyResourcesBinding(resource.binding);
-            DnmGLAssert(binding, "there no binding; wanted binding {}, element index {}", resource.binding, i);
-            DnmGLAssert(binding->resource_count > resource.array_element, "out of bounds; element index {}", i);
-            if (binding->resource_type == ResourceType::eReadonlyBuffer) {
-                if (resource.image)
-                    DnmGLAssert(resource.buffer, "wrong resource type or both sources are provided; element index {}", i);
-                DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
-                DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eReadonlyResource), 
-                        "buffer don't has BufferUsageBits::eReadonlyResource; element index {}", i);
-                break;
-            }
-            else {
-                if (resource.buffer)
-                    DnmGLAssert(resource.image, "wrong resource type or both sources are provided; element index {}", i);
-                DnmGLAssert(resource.image, "resource is null; element index {}", i);
-                DnmGLAssert(resource.image->GetDesc().usage_flags.Has(ImageUsageBits::eReadonlyResource), 
-                            "image don't has ImageUsageBits::eReadonlyResource; element index {}", i);
-                break;
-            }
-        }
-
-        ISetReadonlyResource(update_resource);   
-    }
-
-    inline void ResourceManager::SetWritableResource(std::span<const ResourceDesc> update_resource) {
-        for (const auto i : Counter(update_resource.size())) {
-            const auto &resource = update_resource[i];
-            const auto *binding = GetWritableResourcesBinding(resource.binding);
-            DnmGLAssert(binding, "there no binding; wanted binding {}, element index {}", resource.binding, i);
-            DnmGLAssert(binding->resource_count > resource.array_element, "out of bounds; element index {}", i);
-            if (binding->resource_type == ResourceType::eWritableBuffer) {
-                if (resource.image)
-                    DnmGLAssert(resource.buffer, "wrong resource type or both sources are provided; element index {}", i);
-                DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
-                DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eWritebleResource), 
-                        "buffer don't has BufferUsageBits::eWritable; element index {}", i);
-            }
-            else {
-                if (resource.buffer)
-                    DnmGLAssert(resource.image, "wrong resource type or both sources are provided; element index {}", i);
-                DnmGLAssert(resource.image, "resource is null; element index {}", i);
-                DnmGLAssert(resource.image->GetDesc().usage_flags.Has(ImageUsageBits::eWritebleResource), 
-                            "image don't has ImageUsageBits::eWritebleResource; element index {}", i);
-            }
-        }
-        
-        ISetWritableResource(update_resource);   
-    }
-
-    inline void ResourceManager::SetUniformResource(std::span<const UniformResourceDesc> update_resource) {
-        for (const auto i : Counter(update_resource.size())) {
-            const auto &resource = update_resource[i];
-            const auto *binding = GetReadonlyResourcesBinding(resource.binding);
-            DnmGLAssert(binding, "there no binding; wanted binding {}, element index {}", resource.binding, i);
-            DnmGLAssert(binding->resource_count > resource.array_element, "out of bounds; element index {}", i);
-            DnmGLAssert(resource.buffer, "resource is null; element index {}", i);
-            DnmGLAssert(resource.buffer->GetDesc().usage_flags.Has(BufferUsageBits::eUniform), 
-                        "buffer don't has BufferUsageBits::eUniform; element index {}", i);
-            DnmGLAssert("condition", "fmt, ...");
-        }
-        
-        ISetUniformResource(update_resource);   
-    }
-
-    inline void ResourceManager::SetSamplerResource(std::span<const SamplerResourceDesc> update_resource) {
-        for (const auto i : Counter(update_resource.size())) {
-            const auto &resource = update_resource[i];
-            const auto *binding = GetReadonlyResourcesBinding(resource.binding);
-            DnmGLAssert(binding, "there no binding; wanted binding {}, element index {}", resource.binding, i);
-            DnmGLAssert(binding->resource_count > resource.array_element, "out of bounds; element index {}", i);
-            DnmGLAssert(resource.sampler, "resource is null; element index {}", i);
-        }
-        
-        ISetSamplerResource(update_resource);
-    }
-    
-    constexpr const BindingInfo *ResourceManager::GetReadonlyResourcesBinding(uint32_t i) const noexcept {
-        const auto it = std::ranges::find_if(m_readonly_resource_bindings, [i] (const auto& binding) -> bool {
-            return binding.binding == i;
-        });
-        return it != m_readonly_resource_bindings.end() ? &(*it) : nullptr;
-    }
-
-    constexpr const BindingInfo *ResourceManager::GetWritableResourcesBinding(uint32_t i) const noexcept {
-        const auto it = std::ranges::find_if(m_writable_resource_bindings, [i] (const auto& binding) -> bool {
-            return binding.binding == i;
-        });
-        return it != m_writable_resource_bindings.end() ? &(*it) : nullptr;
-    }
-
-    constexpr const BindingInfo *ResourceManager::GetUniformResourcesBinding(uint32_t i) const noexcept {
-        const auto it = std::ranges::find_if(m_uniform_resource_bindings, [i] (const auto& binding) -> bool {
-            return binding.binding == i;
-        });
-        return it != m_uniform_resource_bindings.end() ? &(*it) : nullptr;
-    }
-
-    constexpr const BindingInfo *ResourceManager::GetSamplerResourcesBinding(uint32_t i) const noexcept {
-        const auto it = std::ranges::find_if(m_sampler_resource_bindings, [i] (const auto& binding) -> bool {
-            return binding.binding == i;
-        });
-        return it != m_sampler_resource_bindings.end() ? &(*it) : nullptr;
-    }
-
-    constexpr const EntryPointInfo *Shader::GetEntryPoint(const std::string_view name) const noexcept {
-        const auto it = std::ranges::find_if(m_entry_point_infos, [name] (const auto& entry_point) -> bool {
-            return entry_point.name == name;
-        });
-        return it != m_entry_point_infos.end() ? &(*it) : nullptr;
     }
 }
 

@@ -2,10 +2,8 @@
 #include "DnmGL/D3D12/CommandBuffer.hpp"
 #include "DnmGL/D3D12/Buffer.hpp"
 #include "DnmGL/D3D12/Image.hpp"
-#include "DnmGL/D3D12/Shader.hpp"
 #include "DnmGL/D3D12/Pipeline.hpp"
 #include "DnmGL/D3D12/Sampler.hpp"
-#include "DnmGL/D3D12/ResourceManager.hpp"
 #include "DnmGL/D3D12/Framebuffer.hpp"
 #include "DnmGL/D3D12/ToDxgiFormat.hpp"
 
@@ -292,15 +290,7 @@ namespace DnmGL::D3D12 {
         return std::make_unique<DnmGL::D3D12::Sampler>(*this, desc);
     }
 
-    std::unique_ptr<DnmGL::Shader> Context::CreateShader(std::string_view desc) noexcept {
-        return std::make_unique<DnmGL::D3D12::Shader>(*this, desc);
-    }
-
-    std::unique_ptr<DnmGL::ResourceManager> Context::CreateResourceManager(std::span<const DnmGL::Shader*> desc) noexcept {
-        return std::make_unique<DnmGL::D3D12::ResourceManager>(*this, desc);
-    }
-
-    std::unique_ptr<DnmGL::ComputePipeline> Context::CreateComputePipeline(const DnmGL::ComputePipelineDesc& desc) noexcept {
+    std::unique_ptr<DnmGL::ComputePipeline> Context::CreateComputePipeline(std::string_view desc) noexcept {
         return std::make_unique<DnmGL::D3D12::ComputePipeline>(*this, desc);
     }
 

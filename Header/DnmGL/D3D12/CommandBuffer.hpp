@@ -23,7 +23,7 @@ namespace DnmGL::D3D12 {
         void IEndComputePass() override { DeferStateTranslation(); }
 
         void IUploadData(DnmGL::Image *image, 
-                        const ImageSubresource& subresource, 
+                        ImageSubresource subresource, 
                         const void *data, 
                         Uint3 copy_extent, 
                         Uint3 copy_offset) override;
@@ -34,9 +34,7 @@ namespace DnmGL::D3D12 {
         void ICopyBufferToImage(const DnmGL::BufferToImageCopyDesc& desc) override;
         void ICopyBufferToBuffer(const DnmGL::BufferToBufferCopyDesc& desc) override;
     
-        void IDispatch(uint32_t x = 1, uint32_t y = 1, uint32_t z = 1) override;
-
-        void IBindPipeline(const DnmGL::ComputePipeline *pipeline) override;
+        void IComputeDispatch(const DnmGL::ComputePipeline *pipeline, std::string_view kernel, uint16_t x = 1, uint16_t y = 1, uint16_t z = 1) override;
 
         void IGenerateMipmaps(DnmGL::Image *image) override;
     
@@ -83,10 +81,6 @@ namespace DnmGL::D3D12 {
         m_command_list->Close();
     }
 
-    inline void CommandBuffer::IDispatch(uint32_t x, uint32_t y, uint32_t z) {
-        m_command_list->Dispatch(x, y, z);
-    }
-
     inline void CommandBuffer::IDraw(uint32_t vertex_count, uint32_t instance_count) {
         m_command_list->DrawInstanced(vertex_count, instance_count, 0, 0);
     }
@@ -130,6 +124,6 @@ namespace DnmGL::D3D12 {
     }
 
     inline void CommandBuffer::RemoveDeferStateTranslation(D3D12::Image *image) {
-        m_defer_state_translation_image.erase   (image);
+        m_defer_state_translation_image.erase(image);
     }
 }
