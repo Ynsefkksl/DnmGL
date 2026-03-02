@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DnmGL/Vulkan/Context.hpp"
+#include "DnmGL/Vulkan/Pipeline.hpp"
 
 namespace DnmGL::Vulkan {
     struct BufferBarrier {
@@ -33,8 +34,8 @@ namespace DnmGL::Vulkan {
 
     class CommandBuffer final : public DnmGL::CommandBuffer {
     public:
-        CommandBuffer(Vulkan::Context& context);
-        ~CommandBuffer() noexcept {
+        explicit CommandBuffer(Vulkan::Context& ctx);
+        ~CommandBuffer() noexcept override {
             VulkanContext
                 ->GetDevice().freeCommandBuffers(VulkanContext->GetCommandPool(), command_buffer);
         }
@@ -81,9 +82,8 @@ namespace DnmGL::Vulkan {
         void IUploadData(DnmGL::Buffer *buffer, const void* data, uint32_t size, uint32_t offset) override;
 
         void Barrier(std::span<const Vulkan::BufferBarrier> buffer_barriers, std::span<const Vulkan::ImageBarrier> image_barriers) const;
-        void BufferBarrier(std::span<const ImageBarrier> desc) const;
         void TransferImageLayout(std::span<const ImageBarrier> desc) const;
-        void TransferImageLayout(std::span<const TransferImageLayoutNativeDesc> desc) const;
+        void TransferImageLayout(std::span<const TransferImageLayoutNativeDesc> descs) const;
 
         void AddDeferLayoutTranslation(Vulkan::Image *image);
         void RemoveDeferLayoutTranslation(Vulkan::Image *image);
@@ -98,17 +98,17 @@ namespace DnmGL::Vulkan {
 
         void BeginRenderingDefaultVk(const BeginRenderingDesc& desc);
         void BeginRenderingDynamicRendering(const BeginRenderingDesc& desc);
-        std::vector<vk::ClearValue> GetClearValues(const BeginRenderingDesc& begin_desc);
+        static std::vector<vk::ClearValue> GetClearValues(const BeginRenderingDesc& begin_desc);
 
         void TranslateAttachmentLayouts(FramebufferBase &framebuffer);
-        void TranslateSwapchainImageLayoutsInBegin();
-        void TranslateSwapchainImageLayoutsInEnd();
+        void TranslateSwapchainImageLayoutsInBegin() const;
+        void TranslateSwapchainImageLayoutsInEnd() const;
 
-        constexpr void BarrierForPipeline(vk::PipelineStageFlags stage_flags, vk::AccessFlags access_flags) noexcept;
+        constexpr void BarrierForPipeline(vk::PipelineStageFlags dst_stage_flags, vk::AccessFlags dst_access_flags) noexcept;
 
         vk::CommandBuffer command_buffer;
 
-        //procress in BindPipeline or end
+        //process in BindPipeline or end
         std::unordered_set<Vulkan::Image *> m_pending_layout_restore_images;
 
         //this is unnecessary
@@ -144,23 +144,23 @@ namespace DnmGL::Vulkan {
         prev_operation = CommandType::ePipeline;
     }
 
-    inline void CommandBuffer::IDraw(uint32_t vertex_count, uint32_t instance_count) {
+    inline void CommandBuffer::IDraw(const uint32_t vertex_count, const uint32_t instance_count) {
         command_buffer.draw(vertex_count, instance_count, 0, 0);
     }
     
-    inline void CommandBuffer::IDrawIndexed(uint32_t index_count, uint32_t instance_count, uint32_t vertex_offset) {
+    inline void CommandBuffer::IDrawIndexed(const uint32_t index_count, const uint32_t instance_count, const uint32_t vertex_offset) {
         command_buffer.drawIndexed(index_count, instance_count, 0, vertex_offset, 0);
     }
 
-    inline void CommandBuffer::ISetViewport(Float2 extent, Float2 offset, float min_depth, float max_depth) {
+    inline void CommandBuffer::ISetViewport(const Float2 extent, const Float2 offset, float min_depth, const float max_depth) {
         command_buffer.setViewport(0, {vk::Viewport{}
-                .setMinDepth(max_depth).setMinDepth(max_depth)
+                .setMinDepth(min_depth).setMinDepth(max_depth)
                 .setHeight(-extent.y).setWidth(extent.x)
                 .setX(offset.x).setY(offset.y + extent.y)
         });
     }
 
-    inline void CommandBuffer::ISetScissor(Uint2 extent, Uint2 offset) {
+    inline void CommandBuffer::ISetScissor(const Uint2 extent, const Uint2 offset) {
         command_buffer.setScissor(0, { 
             vk::Rect2D{}
                 .setOffset({static_cast<int32_t>(offset.x), static_cast<int32_t>(offset.y)})
@@ -169,8 +169,8 @@ namespace DnmGL::Vulkan {
     }
 
     inline void CommandBuffer::Barrier(
-        std::span<const Vulkan::BufferBarrier> buffer_barriers, 
-        std::span<const Vulkan::ImageBarrier> image_barriers) const {
+        const std::span<const Vulkan::BufferBarrier> buffer_barriers,
+        const std::span<const Vulkan::ImageBarrier> image_barriers) const {
         if (VulkanContext->GetSupportedFeatures().sync2) {
             BarrierSync2(buffer_barriers, image_barriers);
         }
@@ -180,7 +180,7 @@ namespace DnmGL::Vulkan {
     }
 
     inline void CommandBuffer::TransferImageLayout(
-        std::span<const TransferImageLayoutNativeDesc> descs) const {
+        const std::span<const TransferImageLayoutNativeDesc> descs) const {
         if (VulkanContext->GetSupportedFeatures().sync2) {
             TransferImageLayoutSync2(descs);
         }
@@ -201,11 +201,11 @@ namespace DnmGL::Vulkan {
 
         std::vector<vk::ClearValue> clear_values{};
         clear_values.resize(clear_value_count);
-        
-        uint32_t i{};
-        for (const auto value : begin_desc.color_clear_values) {
+
+
+        for (uint32_t i{}; const auto [r, g, b, a] : begin_desc.color_clear_values) {
             clear_values[i++] =
-                vk::ClearColorValue(std::array{value.r, value.g, value.b, value.a});
+                vk::ClearColorValue(std::array{r, g, b, a});
         }
         //resolve images
         if (begin_desc.pipeline->HasMsaa())
@@ -221,38 +221,43 @@ namespace DnmGL::Vulkan {
         return clear_values;
     }
 
-    inline constexpr void CommandBuffer::BarrierForPipeline(vk::PipelineStageFlags pipeline_stage_flags, vk::AccessFlags pipeline_access_flags) noexcept {
+    constexpr void CommandBuffer::BarrierForPipeline(const vk::PipelineStageFlags dst_stage_flags, const vk::AccessFlags dst_access_flags) noexcept {
         if (prev_operation != CommandType::eNone) {
-            vk::PipelineStageFlags stage_flags{};
-            vk::AccessFlags access_flags{};
+            vk::PipelineStageFlags src_stage_flags{};
+            vk::AccessFlags src_access_flags{};
 
             switch (prev_operation) {
-                case CommandType::eNone: std::unreachable(); break;
+                case CommandType::eNone: std::unreachable();
                 case CommandType::eTransfer: {
-                    stage_flags |= vk::PipelineStageFlagBits::eTransfer;
-                    access_flags |= vk::AccessFlagBits::eTransferRead | vk::AccessFlagBits::eTransferWrite;
-                }
+                    src_stage_flags = vk::PipelineStageFlagBits::eTransfer;
+                    src_access_flags = vk::AccessFlagBits::eTransferRead | vk::AccessFlagBits::eTransferWrite;
+                } break;
                 case CommandType::ePipeline: {
-                    stage_flags |= prev_stage_flags;
-                    access_flags |= prev_access_flags;
+                    src_stage_flags = prev_stage_flags;
+                    src_access_flags = prev_access_flags;
+
+                    if (!(src_access_flags & vk::AccessFlagBits::eShaderWrite)
+                    && !(dst_access_flags & vk::AccessFlagBits::eShaderWrite)) {
+                        return;
+                    }
                 } break;
             }
 
             const vk::MemoryBarrier barrier(
-                {},
-                pipeline_access_flags
+                src_access_flags,
+                dst_access_flags
             );
             
             command_buffer.pipelineBarrier(
-                {}, 
-                pipeline_stage_flags, 
+                src_stage_flags,
+                dst_stage_flags,
                 {}, 
                 barrier, 
                 {}, 
                 {});
         }
 
-        prev_stage_flags = pipeline_stage_flags;
-        prev_access_flags = pipeline_access_flags;
+        prev_stage_flags = dst_stage_flags;
+        prev_access_flags = dst_access_flags;
     }
 }

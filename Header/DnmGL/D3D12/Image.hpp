@@ -15,7 +15,7 @@ namespace DnmGL::D3D12 {
         else if (usage_flags == ImageUsageBits::eReadonlyResource) {
             return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
         }
-        else if (usage_flags == ImageUsageBits::eWritebleResource) {
+        else if (usage_flags == ImageUsageBits::eWritableResource) {
             return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         }
         return D3D12_RESOURCE_STATE_COMMON;
@@ -24,7 +24,7 @@ namespace DnmGL::D3D12 {
     class Image final : public DnmGL::Image {
     public:
         Image(D3D12::Context& context, const DnmGL::ImageDesc& desc);
-        ~Image() noexcept;
+        ~Image() noexcept override;
 
         [[nodiscard]] auto* GetResource() const noexcept { return m_image.Get(); }
         [[nodiscard]] auto* GetAllocation() const noexcept { return m_allocation; }

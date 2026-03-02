@@ -94,6 +94,7 @@ namespace DnmGL::D3D12 {
         DXGI_FORMAT_R32G32B32_FLOAT,
         DXGI_FORMAT_R32G32B32A32_FLOAT,
     };
+
     [[nodiscard]] constexpr DXGI_FORMAT ToDxgiFormat(const DnmGL::VertexFormat format) noexcept {
         return DxgiVertexFormatMap[static_cast<uint8_t>(format)];
     }

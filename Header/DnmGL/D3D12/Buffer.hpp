@@ -6,10 +6,10 @@ namespace DnmGL::D3D12 {
     constexpr D3D12_RESOURCE_STATES GetIdealBufferState(BufferUsageFlags usage) {
         if (usage.None())
             return D3D12_RESOURCE_STATE_COMMON;
-        else if (usage == BufferUsageBits::eWritebleResource)
+        else if (usage == BufferUsageBits::eWritableResource)
             return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         else {
-            D3D12_RESOURCE_STATES state;
+            D3D12_RESOURCE_STATES state{};
             if (usage.Has(BufferUsageBits::eReadonlyResource))
                 state |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
             if (usage.Has(BufferUsageBits::eUniform) |
@@ -26,7 +26,7 @@ namespace DnmGL::D3D12 {
     class Buffer final : public DnmGL::Buffer {
     public:
         Buffer(D3D12::Context& context, const DnmGL::BufferDesc& desc);
-        ~Buffer() noexcept;
+        ~Buffer() noexcept override;
 
         [[nodiscard]] auto* GetResource() const noexcept { return m_buffer.Get(); }
         [[nodiscard]] auto* GetAllocation() const noexcept { return m_allocation; }

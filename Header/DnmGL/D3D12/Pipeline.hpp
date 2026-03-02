@@ -6,11 +6,11 @@ namespace DnmGL::D3D12 {
     class GraphicsPipeline final : public DnmGL::GraphicsPipeline {
     public:
         GraphicsPipeline(D3D12::Context& context, const DnmGL::GraphicsPipelineDesc &desc) noexcept;
-        ~GraphicsPipeline() noexcept;
+        ~GraphicsPipeline() noexcept override;
 
-        void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) override;
-        void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) override;
-        void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) override;
+        void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint16_t resource_index, uint16_t resource_count) override;
+        void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint16_t resource_index, uint16_t resource_count) override;
+        void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count) override;
 
         [[nodiscard]] CD3DX12_CPU_DESCRIPTOR_HANDLE GetReadonlyResourceHeapCpuHandle(uint32_t i, uint32_t element) const noexcept;
         [[nodiscard]] CD3DX12_CPU_DESCRIPTOR_HANDLE GetWriteableResourceHeapCpuHandle(uint32_t i, uint32_t element) const noexcept;
@@ -42,9 +42,9 @@ namespace DnmGL::D3D12 {
         ComputePipeline(D3D12::Context& context, std::string_view shader_name) noexcept;
         ~ComputePipeline() noexcept;
 
-        void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) override;
-        void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) override;
-        void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) override;
+        void ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint16_t resource_index, uint16_t resource_count) override;
+        void ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint16_t resource_index, uint16_t resource_count) override;
+        void ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count) override;
 
         [[nodiscard]] constexpr auto ReadonlyResourceCount() const noexcept { return m_resource_counts[0]; }
         [[nodiscard]] constexpr auto WritableResourceCount() const noexcept { return m_resource_counts[1]; }

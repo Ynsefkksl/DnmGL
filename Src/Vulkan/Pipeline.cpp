@@ -9,17 +9,17 @@
 //
 
 namespace DnmGL::Vulkan {
-    static constexpr vk::ShaderStageFlagBits GetVkShaderStage(ShaderStageBits stage) {
+    static constexpr vk::PipelineStageFlagBits GetVkPipelineStage(const ShaderStageBits stage) {
         switch (stage) {
             // ShaderStageBits::eNone handled in Shader constructer
             case ShaderStageBits::eNone: std::unreachable();
-            case ShaderStageBits::eVertex: return vk::ShaderStageFlagBits::eVertex;
-            case ShaderStageBits::eFragment: return vk::ShaderStageFlagBits::eFragment;
-            case ShaderStageBits::eCompute: return vk::ShaderStageFlagBits::eCompute;
+            case ShaderStageBits::eVertex: return vk::PipelineStageFlagBits::eVertexShader;
+            case ShaderStageBits::eFragment: return vk::PipelineStageFlagBits::eFragmentShader;
+            case ShaderStageBits::eCompute: return vk::PipelineStageFlagBits::eComputeShader;
         }
     }
 
-    static constexpr vk::DescriptorType GetVkDescriptorType(ResourceType type) {
+    static constexpr vk::DescriptorType GetVkDescriptorType(const ResourceType type) {
         switch (type) {
             // ResourceType::eNone handled in Shader constructer
             case ResourceType::eNone: std::unreachable();
@@ -29,11 +29,10 @@ namespace DnmGL::Vulkan {
             case ResourceType::eWritableImage: return vk::DescriptorType::eStorageImage;
             case ResourceType::eUniformBuffer: return vk::DescriptorType::eUniformBuffer;
             case ResourceType::eSampler: return vk::DescriptorType::eSampler;
-          break;
         }
     }
 
-    static auto GetUpdateResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index, vk::DescriptorSet set) {
+    static auto GetUpdateResource(const Resource &resource, const BufferResourceDesc &buffer_desc, const uint16_t resource_index, const uint16_t resource_count, const vk::DescriptorSet set) {
         const auto *typed_buffer
             = static_cast<const Vulkan::Buffer *>(buffer_desc.buffer);
 
@@ -44,11 +43,12 @@ namespace DnmGL::Vulkan {
             buffer_desc.element_count * typed_buffer->GetDesc().element_size,
             set,
             resource.spirv_index,
-            array_index
+            resource_index,
+            resource_count
         );
     }
 
-    static auto GetUpdateResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index, vk::DescriptorSet set) {
+    static auto GetUpdateResource(const Resource &resource, const ImageResourceDesc &image_desc, const uint16_t resource_index, const uint16_t resource_count, const vk::DescriptorSet set) {
         auto *typed_image
             = static_cast<Vulkan::Image *>(image_desc.image);
 
@@ -58,23 +58,25 @@ namespace DnmGL::Vulkan {
             GetVkDescriptorType(resource.type),
             set,
             resource.spirv_index,
-            array_index
+            resource_index,
+            resource_count
         );
     }
 
-    static auto GetUpdateResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index, vk::DescriptorSet set) {
+    static auto GetUpdateResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count, vk::DescriptorSet set) {
         return Context::UpdateSamplerResource(
             static_cast<const Vulkan::Sampler *>(sampler)->GetSampler(),
             set,
             resource.spirv_index,
-            array_index
+            resource_index,
+            resource_count
         );
     }
 
-    static std::pair<vk::PipelineLayout, vk::DescriptorSetLayout> GetPipelineLayoutFromShaderData(Vulkan::Context &context, const ShaderReflection &shader_reflection, bool is_compute) {
+    static std::pair<vk::PipelineLayout, vk::DescriptorSetLayout> GetPipelineLayoutFromShaderData(const Vulkan::Context &context, const ShaderReflection &shader_reflection, const bool is_compute) {
         std::vector<vk::DescriptorSetLayoutBinding> bindings;
         bindings.reserve(shader_reflection.resources.size());
-        for (const auto &[_, res] : shader_reflection.resources)
+        for (const auto& res : shader_reflection.resources | std::views::values)
             bindings.emplace_back(
                 res.spirv_index,
                 GetVkDescriptorType(res.type),
@@ -82,7 +84,6 @@ namespace DnmGL::Vulkan {
                 is_compute ? vk::ShaderStageFlagBits::eCompute : (vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
             );
 
-        vk::DescriptorSetLayoutCreateFlagBits s;
         vk::DescriptorSetLayout dst_set_layout = context.GetDevice().createDescriptorSetLayout(
             vk::DescriptorSetLayoutCreateInfo{}
                 .setBindings(bindings)
@@ -115,17 +116,35 @@ namespace DnmGL::Vulkan {
                 reinterpret_cast<const uint32_t *>(m_shader_data->spirv_code.data())
             )
         );
+
+        for (const auto& entry_point : GetShaderReflection().entry_points | std::views::values) {
+            m_resource_access.stage_flags |= GetVkPipelineStage(entry_point.shader_stage);
+            for (const auto res : entry_point.used_resources) {
+                switch(GetShaderReflection().resources.at(res).type) {
+                    case ResourceType::eNone: std::unreachable();
+                    case ResourceType::eSampler:
+                    case ResourceType::eReadonlyBuffer:
+                    case ResourceType::eReadonlyImage: m_resource_access.access_flags |= vk::AccessFlagBits::eShaderRead; break;
+                    case ResourceType::eWritableBuffer:
+                    case ResourceType::eWritableImage: m_resource_access.access_flags |= vk::AccessFlagBits::eShaderWrite; break;
+                    case ResourceType::eUniformBuffer: m_resource_access.access_flags |= vk::AccessFlagBits::eUniformRead; break;
+                        break;
+                }
+            }
+        }
+
+        SetPipelineResources();
     }
 
- GraphicsPipelineDynamicRendering::GraphicsPipelineDynamicRendering(Vulkan::Context& ctx, const DnmGL::GraphicsPipelineDesc& desc) noexcept 
+ GraphicsPipelineDynamicRendering::GraphicsPipelineDynamicRendering(Vulkan::Context &ctx, const DnmGL::GraphicsPipelineDesc &desc) noexcept 
     : Vulkan::GraphicsPipelineBase(ctx, desc) {
         m_pipeline = CreatePipeline(VK_NULL_HANDLE);
     }
 
-    GraphicsPipelineDefaultVk::GraphicsPipelineDefaultVk(Vulkan::Context& ctx, const DnmGL::GraphicsPipelineDesc& desc) noexcept
+    GraphicsPipelineDefaultVk::GraphicsPipelineDefaultVk(Vulkan::Context &ctx, const DnmGL::GraphicsPipelineDesc &desc) noexcept
         : GraphicsPipelineBase(ctx, desc) {}
 
-    vk::RenderPass GraphicsPipelineDefaultVk::CreateRenderpass(AttachmentOps attachment_ops, bool presenting) noexcept {
+    vk::RenderPass GraphicsPipelineDefaultVk::CreateRenderpass(const AttachmentOps &attachment_ops, const bool presenting) const noexcept {
         const auto device = VulkanContext->GetDevice();
 
         std::vector<vk::AttachmentDescription> attachment_descs{};
@@ -135,7 +154,7 @@ namespace DnmGL::Vulkan {
         for (const auto i : Counter(ColorAttachmentCount())) {
             attachment_descs.emplace_back(
                 vk::AttachmentDescriptionFlags{},
-                presenting ? VulkanContext->GetSwapchainProperties().format : ToVkFormat(m_resterizer_desc.color_attachment_formats[i]),
+                presenting ? VulkanContext->GetSwapchainProperties().format : ToVkFormat(m_rasterizer_desc.color_attachment_formats[i]),
                 vk::SampleCountFlagBits::e1,
                 ToVk(attachment_ops.color_load[i]),
                 ToVk(attachment_ops.color_store[i]), 
@@ -163,8 +182,8 @@ namespace DnmGL::Vulkan {
             for (const auto i : Counter(ColorAttachmentCount())) {
                 attachment_descs.emplace_back(
                     vk::AttachmentDescriptionFlags{},
-                    presenting ? VulkanContext->GetSwapchainProperties().format : ToVkFormat(m_resterizer_desc.color_attachment_formats[i]),
-                    VulkanContext->GetSampleCount(m_resterizer_desc.msaa),
+                    presenting ? VulkanContext->GetSwapchainProperties().format : ToVkFormat(m_rasterizer_desc.color_attachment_formats[i]),
+                    VulkanContext->GetSampleCount(m_rasterizer_desc.msaa),
                     vk::AttachmentLoadOp::eClear,
                     vk::AttachmentStoreOp::eDontCare,
                     vk::AttachmentLoadOp::eDontCare,
@@ -188,7 +207,7 @@ namespace DnmGL::Vulkan {
             attachment_descs.emplace_back(
                 vk::AttachmentDescriptionFlags{},
                 ToVkFormat(m_depth_stencil_desc.depth_stencil_format),
-                VulkanContext->GetSampleCount(m_resterizer_desc.msaa),
+                VulkanContext->GetSampleCount(m_rasterizer_desc.msaa),
                 ToVk(attachment_ops.depth_load),
                 ToVk(attachment_ops.depth_store),
                 ToVk(attachment_ops.stencil_load),
@@ -202,7 +221,7 @@ namespace DnmGL::Vulkan {
             attachment_descs.emplace_back(
                 vk::AttachmentDescriptionFlags{},
                 ToVkFormat(m_depth_stencil_desc.depth_stencil_format),
-                VulkanContext->GetSampleCount(m_resterizer_desc.msaa),
+                VulkanContext->GetSampleCount(m_rasterizer_desc.msaa),
                 ToVk(attachment_ops.depth_load),
                 ToVk(attachment_ops.depth_store),
                 vk::AttachmentLoadOp::eDontCare,
@@ -255,7 +274,7 @@ namespace DnmGL::Vulkan {
         {
             uint32_t location{};
             uint32_t offset{};
-            for (const auto& [binding_format, offseta] : m_input_assambly_desc.vertex_bindings) {
+            for (const auto &[binding_format, _] : m_input_assembly_desc.vertex_bindings) {
                 const auto size = GetFormatSize(binding_format);
                 DnmGLAssert(size, "unsupported vertex binding format; location: {}", location)
                 vertex_attrib_desc.emplace_back(
@@ -280,7 +299,7 @@ namespace DnmGL::Vulkan {
                                     ;
 
         vk::PipelineInputAssemblyStateCreateInfo input_assembly_info{};
-        input_assembly_info.setTopology(static_cast<vk::PrimitiveTopology>(m_input_assambly_desc.topology));
+        input_assembly_info.setTopology(static_cast<vk::PrimitiveTopology>(m_input_assembly_desc.topology));
 
         vk::PipelineShaderStageCreateInfo shader_stage_create_info[2]{};
         shader_stage_create_info[0].setStage(vk::ShaderStageFlagBits::eVertex)
@@ -301,15 +320,15 @@ namespace DnmGL::Vulkan {
             .setScissorCount(1).setViewportCount(1);
 
         vk::PipelineRasterizationStateCreateInfo rester_info{};
-        rester_info.setPolygonMode(static_cast<vk::PolygonMode>(m_resterizer_desc.polygone_mode))
+        rester_info.setPolygonMode(static_cast<vk::PolygonMode>(m_rasterizer_desc.polygone_mode))
                     .setLineWidth(1.f)
-                    .setCullMode(static_cast<vk::CullModeFlagBits>(m_resterizer_desc.cull_mode))
-                    .setFrontFace(static_cast<vk::FrontFace>(m_resterizer_desc.front_face))
+                    .setCullMode(static_cast<vk::CullModeFlagBits>(m_rasterizer_desc.cull_mode))
+                    .setFrontFace(static_cast<vk::FrontFace>(m_rasterizer_desc.front_face))
                     ;
 
         vk::PipelineMultisampleStateCreateInfo multisample_Info{};
         multisample_Info.setSampleShadingEnable(vk::False)
-                        .setRasterizationSamples(VulkanContext->GetSampleCount(m_resterizer_desc.msaa))
+                        .setRasterizationSamples(VulkanContext->GetSampleCount(m_rasterizer_desc.msaa))
                         .setMinSampleShading(1.f)
                         ;
 
@@ -323,9 +342,9 @@ namespace DnmGL::Vulkan {
                             ;
 
         std::vector<vk::PipelineColorBlendAttachmentState> blend_state{};
-        for (auto i : Counter(m_resterizer_desc.color_attachment_formats.size()))
+        for (auto i : Counter(m_rasterizer_desc.color_attachment_formats.size()))
                 blend_state.emplace_back(vk::PipelineColorBlendAttachmentState{}
-                    .setBlendEnable(m_resterizer_desc.color_blend)
+                    .setBlendEnable(m_rasterizer_desc.color_blend)
                     .setColorWriteMask(
                         vk::ColorComponentFlagBits::eA | 
                         vk::ColorComponentFlagBits::eR | 
@@ -365,7 +384,7 @@ namespace DnmGL::Vulkan {
                         ;
 
         std::vector<vk::Format> color_formats{};
-        for (const auto format : m_resterizer_desc.color_attachment_formats) {
+        for (const auto format : m_rasterizer_desc.color_attachment_formats) {
             color_formats.emplace_back(ToVkFormat(format));
         }
 
@@ -411,7 +430,7 @@ namespace DnmGL::Vulkan {
         return {vk_renderpass, m_pipelines.at(vk_renderpass)};
     }
 
-    ComputePipeline::ComputePipeline(Vulkan::Context& ctx, std::string_view shader) noexcept
+    ComputePipeline::ComputePipeline(Vulkan::Context &ctx, const std::string_view shader) noexcept
         : DnmGL::ComputePipeline(ctx, shader) {
         const auto device = VulkanContext->GetDevice();
 
@@ -435,41 +454,66 @@ namespace DnmGL::Vulkan {
                     .setModule(m_shader_module)
                     ;
 
-        for (const auto &[stage_name, _] : m_shader_data->reflection.entry_points) {
+        for (const auto& [stage_name, asd] : m_shader_data->reflection.entry_points) {
             stage_info.setPName(stage_name.c_str());
 
             vk::ComputePipelineCreateInfo pipeline_info{};
             pipeline_info.setStage(stage_info)
                         .setLayout(m_pipeline_layout)
                         ;
+
+            const auto pipeline = device.createComputePipeline(nullptr, pipeline_info).value;
     
             m_pipelines.emplace(
                 stage_name, 
-                device.createComputePipeline(nullptr, pipeline_info).value);
+                pipeline);
+
+
+            vk::PipelineStageFlags stage_flags = vk::PipelineStageFlagBits::eComputeShader;
+            vk::AccessFlags access_flags{};
+            for (const auto res : asd.used_resources) {
+                switch(GetShaderReflection().resources.at(res).type) {
+                case ResourceType::eNone: std::unreachable();
+                case ResourceType::eSampler:
+                case ResourceType::eReadonlyBuffer:
+                case ResourceType::eReadonlyImage: access_flags |= vk::AccessFlagBits::eShaderRead; break;
+                case ResourceType::eWritableBuffer:
+                case ResourceType::eWritableImage: access_flags |= vk::AccessFlagBits::eShaderWrite; break;
+                case ResourceType::eUniformBuffer: access_flags |= vk::AccessFlagBits::eUniformRead; break;
+                }
+            }
+            m_resource_access.emplace(
+                static_cast<VkPipeline>(pipeline),
+                PipelineResourceAccess{
+                    vk::PipelineStageFlagBits::eComputeShader,
+                    access_flags}
+                );
         }
+
+        SetPipelineResources();
     }
     
-    void ComputePipeline::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) {
-        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, buffer_desc, array_index, m_dst_set));
+    void ComputePipeline::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint16_t resource_index, uint16_t resource_count) {
+        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, buffer_desc, resource_index, resource_count, m_dst_set));
     }
 
-    void ComputePipeline::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) {
-        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, image_desc, array_index, m_dst_set));
+    void ComputePipeline::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint16_t resource_index, uint16_t resource_count) {
+        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, image_desc, resource_index, resource_count, m_dst_set));
     }
 
-    void ComputePipeline::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) {
-        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, sampler, array_index, m_dst_set));
+    void ComputePipeline::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count) {
+        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, sampler, resource_index, resource_count, m_dst_set));
     }
     
-    void GraphicsPipelineBase::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) {
-        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, buffer_desc, array_index, m_dst_set));
+    void GraphicsPipelineBase::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint16_t resource_index, uint16_t resource_count) {
+        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, buffer_desc, resource_index, resource_count, m_dst_set));
     }
 
-    void GraphicsPipelineBase::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) {
-        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, image_desc, array_index, m_dst_set));
+    void GraphicsPipelineBase::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint16_t resource_index, uint16_t resource_count) {
+        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, image_desc, resource_index, resource_count, m_dst_set));
     }
 
-    void GraphicsPipelineBase::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) {
-        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, sampler, array_index, m_dst_set));
+    void GraphicsPipelineBase::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count) {
+        VulkanContext->UpdateDescriptor(GetUpdateResource(resource, sampler, resource_index, resource_count, m_dst_set));
     }
 }

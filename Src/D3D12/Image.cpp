@@ -4,7 +4,7 @@
 namespace DnmGL::D3D12 {
     static constexpr D3D12_RESOURCE_FLAGS GetResourceFlags(ImageUsageFlags flags) {
         D3D12_RESOURCE_FLAGS d3d12_flags{};
-        if (flags.Has(ImageUsageBits::eWritebleResource)) {
+        if (flags.Has(ImageUsageBits::eWritableResource)) {
             d3d12_flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
         if (flags.Has(ImageUsageBits::eColorAttachment)) {

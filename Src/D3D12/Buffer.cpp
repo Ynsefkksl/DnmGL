@@ -6,7 +6,7 @@ namespace DnmGL::D3D12 {
         if (!usage_flags.Has(BufferUsageBits::eReadonlyResource)) {
             flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
         }
-        if (usage_flags.Has(BufferUsageBits::eWritebleResource)) {
+        if (usage_flags.Has(BufferUsageBits::eWritableResource)) {
             flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
         return flags;

@@ -301,9 +301,9 @@ namespace DnmGL::D3D12 {
         D3D12_RASTERIZER_DESC rasterizer_desc;
         rasterizer_desc.MultisampleEnable = HasMsaa();
         rasterizer_desc.ForcedSampleCount = 0;
-        rasterizer_desc.FillMode = D3D12FillMode(m_desc.resterizer_desc->polygone_mode);
-        rasterizer_desc.CullMode = D3D12CullMode(m_desc.resterizer_desc->cull_mode);
-        rasterizer_desc.FrontCounterClockwise = m_desc.resterizer_desc->front_face == FrontFace::eCounterClockwise;
+        rasterizer_desc.FillMode = D3D12FillMode(m_desc.rasterizer_desc->polygone_mode);
+        rasterizer_desc.CullMode = D3D12CullMode(m_desc.rasterizer_desc->cull_mode);
+        rasterizer_desc.FrontCounterClockwise = m_desc.rasterizer_desc->front_face == FrontFace::eCounterClockwise;
         rasterizer_desc.DepthClipEnable = m_desc.depth_stencil_desc->depth_test;
         
         D3D12_DEPTH_STENCIL_DESC depth_stencil_desc;
@@ -333,12 +333,12 @@ namespace DnmGL::D3D12 {
         pipeline_desc.DepthStencilState = depth_stencil_desc;
         pipeline_desc.InputLayout = input_desc;
         pipeline_desc.PrimitiveTopologyType = D3D12TopologyType(m_desc.input_assembly_desc->topology);
-        pipeline_desc.NumRenderTargets = m_desc.resterizer_desc->color_attachment_formats.size();
+        pipeline_desc.NumRenderTargets = m_desc.rasterizer_desc->color_attachment_formats.size();
 
-        for (const auto i : Counter(m_desc.resterizer_desc->color_attachment_formats.size())) {
-            pipeline_desc.RTVFormats[i] = ToDxgiFormat(m_desc.resterizer_desc->color_attachment_formats[i]);
+        for (const auto i : Counter(m_desc.rasterizer_desc->color_attachment_formats.size())) {
+            pipeline_desc.RTVFormats[i] = ToDxgiFormat(m_desc.rasterizer_desc->color_attachment_formats[i]);
             pipeline_desc.BlendState.RenderTarget[i].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-            pipeline_desc.BlendState.RenderTarget[i].BlendEnable = m_desc.resterizer_desc->color_blend;
+            pipeline_desc.BlendState.RenderTarget[i].BlendEnable = m_desc.rasterizer_desc->color_blend;
             pipeline_desc.BlendState.RenderTarget[i].BlendOp = D3D12_BLEND_OP_ADD;
             pipeline_desc.BlendState.RenderTarget[i].BlendOpAlpha = D3D12_BLEND_OP_ADD;
             pipeline_desc.BlendState.RenderTarget[i].SrcBlend = D3D12_BLEND_SRC_ALPHA; 
@@ -348,12 +348,14 @@ namespace DnmGL::D3D12 {
         }
 
         pipeline_desc.DSVFormat = ToDxgiFormat(m_desc.depth_stencil_desc->depth_stencil_format);
-        pipeline_desc.SampleDesc = DXGI_SAMPLE_DESC{static_cast<uint32_t>(m_desc.resterizer_desc->msaa), 0};
+        pipeline_desc.SampleDesc = DXGI_SAMPLE_DESC{static_cast<uint32_t>(m_desc.rasterizer_desc->msaa), 0};
         pipeline_desc.SampleMask = UINT_MAX;
 
         D3D12Context->GetDevice()->CreateGraphicsPipelineState(
             &pipeline_desc, 
-            IID_PPV_ARGS(&m_pipeline_state));        
+            IID_PPV_ARGS(&m_pipeline_state));   
+            
+        SetPipelineResources();
     }
 
     ComputePipeline::ComputePipeline(D3D12::Context& ctx, std::string_view shader_name) noexcept
@@ -384,25 +386,26 @@ namespace DnmGL::D3D12 {
                 &pipeline_desc, 
                 IID_PPV_ARGS(&it.first->second));
         }
+
+        SetPipelineResources();
     }
 
-    void ComputePipeline::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) {
+    void ComputePipeline::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint16_t resource_index, uint16_t resource_count) {
         const auto *typed_buffer = static_cast<const D3D12::Buffer *>(buffer_desc.buffer);
 
         if (resource.type == ResourceType::eUniformBuffer) {
-            const auto heap_cpu_handle = GetUniformResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {
                 .BufferLocation = typed_buffer->GetResource()->GetGPUVirtualAddress() + (buffer_desc.first_element * typed_buffer->GetDesc().element_size),
-                .SizeInBytes = buffer_desc.element_count
+                .SizeInBytes = (buffer_desc.element_count * typed_buffer->GetDesc().element_size)
             };
 
-            D3D12Context->GetDevice()->CreateConstantBufferView(
-                &desc, heap_cpu_handle);   
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetUniformResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateConstantBufferView(
+                    &desc, heap_cpu_handle);   
+            }
         }
         else if (resource.type == ResourceType::eReadonlyBuffer) {
-            const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = D3D12_SHADER_RESOURCE_VIEW_DESC{
                 .Format = DXGI_FORMAT_UNKNOWN,
                 .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
@@ -414,13 +417,13 @@ namespace DnmGL::D3D12 {
                     .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
                 }
             };
-    
-            D3D12Context->GetDevice()->CreateShaderResourceView(
-                typed_buffer->GetResource(), &desc, heap_cpu_handle);   
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateShaderResourceView(
+                    typed_buffer->GetResource(), &desc, heap_cpu_handle);
+            }
         }
         else if (resource.type == ResourceType::eWritableBuffer) {
-            const auto heap_cpu_handle = GetWriteableResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = D3D12_UNORDERED_ACCESS_VIEW_DESC{
                 .Format = DXGI_FORMAT_UNKNOWN,
                 .ViewDimension = D3D12_UAV_DIMENSION_BUFFER,
@@ -430,56 +433,61 @@ namespace DnmGL::D3D12 {
                     .StructureByteStride = typed_buffer->GetDesc().element_size
                 }
             };
-    
-            D3D12Context->GetDevice()->CreateUnorderedAccessView(
-                typed_buffer->GetResource(), nullptr, &desc, heap_cpu_handle);   
+
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetWriteableResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateUnorderedAccessView(
+                    typed_buffer->GetResource(), nullptr, &desc, heap_cpu_handle);   
+            }
         }
     }
 
-    void ComputePipeline::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) {
+    void ComputePipeline::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint16_t resource_index, uint16_t resource_count) {
         const auto *typed_image = static_cast<const D3D12::Image *>(image_desc.image);
 
         if (resource.type == ResourceType::eReadonlyImage) {
-            const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = GetImageSRV(typed_image, image_desc.subresource);
-
-            D3D12Context->GetDevice()->CreateShaderResourceView(
-                typed_image->GetResource(), &desc, heap_cpu_handle);   
+            
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateShaderResourceView(
+                    typed_image->GetResource(), &desc, heap_cpu_handle);   
+            }
         }
         else if (resource.type == ResourceType::eWritableImage) {
-            const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = GetImageUAV(typed_image, image_desc.subresource);
 
-            D3D12Context->GetDevice()->CreateUnorderedAccessView(
-                typed_image->GetResource(), nullptr, &desc, heap_cpu_handle);    
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateUnorderedAccessView(
+                    typed_image->GetResource(), nullptr, &desc, heap_cpu_handle);    
+            }
         }
     }
 
-    void ComputePipeline::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) {
-        const auto heap_cpu_handle = GetSamplerResourceHeapCpuHandle(resource.dxil_index, array_index);
-
-        D3D12Context->GetDevice()->CreateSampler(&static_cast<const D3D12::Sampler *>(sampler)->m_sampler_desc, heap_cpu_handle);
+    void ComputePipeline::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count) {
+        for (const auto i : Counter(resource_count)) {
+            const auto heap_cpu_handle = GetSamplerResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+            D3D12Context->GetDevice()->CreateSampler(&static_cast<const D3D12::Sampler *>(sampler)->m_sampler_desc, heap_cpu_handle);
+        }
     }
 
-    void GraphicsPipeline::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint32_t array_index) {
+    void GraphicsPipeline::ISetResource(const Resource &resource, const BufferResourceDesc &buffer_desc, uint16_t resource_index, uint16_t resource_count) {
         const auto *typed_buffer = static_cast<const D3D12::Buffer *>(buffer_desc.buffer);
 
         if (resource.type == ResourceType::eUniformBuffer) {
-            const auto heap_cpu_handle = GetUniformResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {
                 .BufferLocation = typed_buffer->GetResource()->GetGPUVirtualAddress() + (buffer_desc.first_element * typed_buffer->GetDesc().element_size),
-                .SizeInBytes = buffer_desc.element_count * typed_buffer->GetDesc().element_size
+                .SizeInBytes = (buffer_desc.element_count * typed_buffer->GetDesc().element_size)
             };
 
-            D3D12Context->GetDevice()->CreateConstantBufferView(
-                &desc, heap_cpu_handle);   
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetUniformResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateConstantBufferView(
+                    &desc, heap_cpu_handle);   
+            }
         }
         else if (resource.type == ResourceType::eReadonlyBuffer) {
-            const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = D3D12_SHADER_RESOURCE_VIEW_DESC{
                 .Format = DXGI_FORMAT_UNKNOWN,
                 .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
@@ -491,13 +499,13 @@ namespace DnmGL::D3D12 {
                     .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
                 }
             };
-    
-            D3D12Context->GetDevice()->CreateShaderResourceView(
-                typed_buffer->GetResource(), &desc, heap_cpu_handle);   
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateShaderResourceView(
+                    typed_buffer->GetResource(), &desc, heap_cpu_handle);
+            }
         }
         else if (resource.type == ResourceType::eWritableBuffer) {
-            const auto heap_cpu_handle = GetWriteableResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = D3D12_UNORDERED_ACCESS_VIEW_DESC{
                 .Format = DXGI_FORMAT_UNKNOWN,
                 .ViewDimension = D3D12_UAV_DIMENSION_BUFFER,
@@ -507,36 +515,42 @@ namespace DnmGL::D3D12 {
                     .StructureByteStride = typed_buffer->GetDesc().element_size
                 }
             };
-    
-            D3D12Context->GetDevice()->CreateUnorderedAccessView(
-                typed_buffer->GetResource(), nullptr, &desc, heap_cpu_handle);   
+
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetWriteableResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateUnorderedAccessView(
+                    typed_buffer->GetResource(), nullptr, &desc, heap_cpu_handle);   
+            }
         }
     }
 
-    void GraphicsPipeline::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint32_t array_index) {
+    void GraphicsPipeline::ISetResource(const Resource &resource, const ImageResourceDesc &image_desc, uint16_t resource_index, uint16_t resource_count) {
         const auto *typed_image = static_cast<const D3D12::Image *>(image_desc.image);
 
         if (resource.type == ResourceType::eReadonlyImage) {
-            const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = GetImageSRV(typed_image, image_desc.subresource);
-
-            D3D12Context->GetDevice()->CreateShaderResourceView(
-                typed_image->GetResource(), &desc, heap_cpu_handle);   
+            
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateShaderResourceView(
+                    typed_image->GetResource(), &desc, heap_cpu_handle);   
+            }
         }
         else if (resource.type == ResourceType::eWritableImage) {
-            const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, array_index);
-
             const auto desc = GetImageUAV(typed_image, image_desc.subresource);
 
-            D3D12Context->GetDevice()->CreateUnorderedAccessView(
-                typed_image->GetResource(), nullptr, &desc, heap_cpu_handle);    
+            for (const auto i : Counter(resource_count)) {
+                const auto heap_cpu_handle = GetReadonlyResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+                D3D12Context->GetDevice()->CreateUnorderedAccessView(
+                    typed_image->GetResource(), nullptr, &desc, heap_cpu_handle);    
+            }
         }
     }
 
-    void GraphicsPipeline::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint32_t array_index) {
-        const auto heap_cpu_handle = GetSamplerResourceHeapCpuHandle(resource.dxil_index, array_index);
-
-        D3D12Context->GetDevice()->CreateSampler(&static_cast<const D3D12::Sampler *>(sampler)->m_sampler_desc, heap_cpu_handle);
+    void GraphicsPipeline::ISetResource(const Resource &resource, const DnmGL::Sampler *sampler, uint16_t resource_index, uint16_t resource_count) {
+        for (const auto i : Counter(resource_count)) {
+            const auto heap_cpu_handle = GetSamplerResourceHeapCpuHandle(resource.dxil_index, resource_index + i);
+            D3D12Context->GetDevice()->CreateSampler(&static_cast<const D3D12::Sampler *>(sampler)->m_sampler_desc, heap_cpu_handle);
+        }
     }
 }

@@ -105,6 +105,10 @@ namespace DnmGL {
         bool operator==(const SpriteHandle& other) const {
             return GetValue() == other.GetValue();
         }
+
+        bool isNull() const {
+            return value == nullptr;
+        }
     private:
         explicit SpriteHandle(uint32_t value) : value(new uint32_t(value)) {}
 
@@ -119,10 +123,6 @@ namespace DnmGL {
         void Invalidate() {
             delete value;
             value = nullptr;
-        }
-
-        bool isNull() const {
-            return value == nullptr;
         }
 
         uint32_t *value{}; // point to spriteBuffer element
@@ -221,8 +221,6 @@ namespace DnmGL {
         {
             m_shader = "Sprite";
 
-            const ImageFormat image_format[1] = { ImageFormat::eRGBA8Norm };
-
             DepthStencilDesc depth_stencil_desc{};
             depth_stencil_desc.depth_stencil_format = GetContext()->GetSwapchainSettings().depth_buffer_format;
             depth_stencil_desc.depth_test_compare_op = DnmGL::CompareOp::eLessOrEqual; 
@@ -232,15 +230,15 @@ namespace DnmGL {
             InputAssemblyDesc input_assembly_desc{};
             input_assembly_desc.topology = DnmGL::PrimitiveTopology::eTriangleStrip;
 
-            ResterizerDesc resterizer_desc{};
-            resterizer_desc.color_attachment_formats = image_format;
-            resterizer_desc.cull_mode = DnmGL::CullMode::eNone; 
-            resterizer_desc.msaa = desc.msaa; 
-            resterizer_desc.color_blend = desc.color_blend; 
+            RasterizerDesc rasterizer_desc{};
+            rasterizer_desc.color_attachment_formats = { ImageFormat::eRGBA8Norm };
+            rasterizer_desc.cull_mode = DnmGL::CullMode::eNone;
+            rasterizer_desc.msaa = desc.msaa;
+            rasterizer_desc.color_blend = desc.color_blend;
 
             GraphicsPipelineDesc pipeline_desc{};
             pipeline_desc.shader_name = m_shader;
-            pipeline_desc.resterizer_desc = &resterizer_desc;
+            pipeline_desc.rasterizer_desc = &rasterizer_desc;
             pipeline_desc.depth_stencil_desc = &depth_stencil_desc;
             pipeline_desc.input_assembly_desc = &input_assembly_desc;
 
@@ -248,15 +246,15 @@ namespace DnmGL {
         }
 
         {
-            m_graphics_pipeline->SetResource("atlas_texture", ImageResourceDesc{
+             m_graphics_pipeline->SetResource("atlas_texture", ImageResourceDesc{
                 .image = desc.atlas_texture ? desc.atlas_texture : GetContext()->GetPlaceholderImage(),
                 .subresource = desc.atlas_texture_subresource ? *desc.atlas_texture_subresource : ImageSubresource{},
-            }, 0);
+            }, 0, 1);
         }
 
         {
             m_graphics_pipeline->SetResource("atlas_sampler", 
-                desc.sampler ? desc.sampler : GetContext()->GetPlaceholderSampler(), 0);
+                desc.sampler ? desc.sampler : GetContext()->GetPlaceholderSampler(), 0, 1);
         }
 
         {
@@ -264,14 +262,14 @@ namespace DnmGL {
                 m_sprite_buffer.get(),
                 0,
                 m_sprite_buffer->GetDesc().element_count
-            }, 0);
+            }, 0, 1);
         }
 
         {
             m_graphics_pipeline->SetResource("camera_buffer", BufferResourceDesc{
                 m_camera_buffer.get(),
                 0, 1
-            }, 0);
+            }, 0, 1);
         }
     }
 
@@ -303,7 +301,7 @@ namespace DnmGL {
                 m_sprite_buffer.get(),
                 0,
                 m_sprite_buffer->GetDesc().element_count
-            }, 0);
+            }, 0, 1);
         }
     }
 

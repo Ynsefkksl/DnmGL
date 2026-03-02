@@ -21,16 +21,7 @@ set(Libraries)
 set(Includes)
 
 find_package(slang REQUIRED PATHS ThirdParty/Slang NO_DEFAULT_PATH)
-
-function(copy_dlls_to_runtime target dll_dir)
-    file(GLOB DLLS "${dll_dir}/*.dll")
-
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${DLLS}
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    )
-endfunction()
+find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 
 list(APPEND Includes 
         ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Slang/include)
@@ -38,7 +29,6 @@ list(APPEND Includes
 if (Vulkan)
     find_package(Vulkan REQUIRED)
     find_package(VulkanMemoryAllocator CONFIG REQUIRED)
-    find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 
     file(GLOB Vulkan_Sources
         Src/Vulkan/*.cpp
@@ -46,7 +36,6 @@ if (Vulkan)
     set(Vulkan_Libraries
         Vulkan::Vulkan
         GPUOpen::VulkanMemoryAllocator
-        unofficial::spirv-reflect
     )
     
     list(APPEND Sources ${Vulkan_Sources})
@@ -55,17 +44,14 @@ endif()
 
 if (D3D12 AND WIN32)
     find_package(directx-headers CONFIG REQUIRED)
-    find_package(directx-dxc CONFIG REQUIRED)
 
     file(GLOB D3D12_Sources
         Src/D3D12/*.cpp
         ThirdParty/D3D12MA/*.cpp
     )
     set(D3D12_Libraries
-        Microsoft::DirectXShaderCompiler
         Microsoft::DirectX-Headers
         D3d12
-        dxcompiler
         dxgi
     )
     
@@ -85,6 +71,7 @@ add_library(DnmGL::DnmGL ALIAS ${PROJECT_NAME})
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${Libraries}
     slang::slang
+    unofficial::spirv-reflect
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -102,14 +89,7 @@ if(D3D12)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DnmGL_D3D12_Backend)
 endif(D3D12)
 
-find_file(DXIL_DLL 
-    NAMES dxil.dll 
-    PATHS ${CMAKE_PREFIX_PATH}/bin ${CMAKE_PREFIX_PATH}/tools/directxshadercompiler
-    NO_DEFAULT_PATH
-)
 file(GLOB DLLS ThirdParty/Slang/bin/*.dll)
-
-list(APPEND DLLS ${DXIL_DLL})
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -117,6 +97,10 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
+message(${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
 if(Examples)
     add_subdirectory(Examples)
 endif()
+
+#enable_testing()

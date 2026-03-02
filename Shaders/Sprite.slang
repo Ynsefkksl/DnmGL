@@ -39,8 +39,8 @@ struct Sprite {
 ReadonlyBuffer<Sprite> sprite_buffer;
 
 [BufferDesc(
-    MemoryType::eDeviceMemory, 
-    MemoryHostAccess::eWrite, 
+    MemoryType::eDeviceMemory,
+    MemoryHostAccess::eWrite,
     BufferUsageBits::eUniform,
     1)]
 UniformBuffer camera_buffer {
@@ -97,7 +97,18 @@ VertexOut VertMain(VertexIn in) {
     y = 0, w = 1 for uv.y value
 */
 
+[ImageDesc(
+    1,
+    1,
+    1,
+    ImageFormat::eRGBA8Norm,
+    ImageUsageBits::eReadonlyResource,
+    ImageType::e2D,
+    1,
+    SampleCount::e1
+)]
 ReadonlyImage atlas_texture;
+
 Sampler atlas_sampler;
 
 [[shader("fragment")]]

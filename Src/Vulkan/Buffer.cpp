@@ -16,7 +16,7 @@ namespace DnmGL::Vulkan {
         if (flags.Has(BufferUsageBits::eUniform))
             vk_flag |= vk::BufferUsageFlagBits::eUniformBuffer;
 
-        if (flags.Has(BufferUsageBits::eReadonlyResource) | flags.Has(BufferUsageBits::eWritebleResource))
+        if (flags.Has(BufferUsageBits::eReadonlyResource) | flags.Has(BufferUsageBits::eWritableResource))
             vk_flag |= vk::BufferUsageFlagBits::eStorageBuffer;
 
         vk_flag |= vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eTransferSrc;

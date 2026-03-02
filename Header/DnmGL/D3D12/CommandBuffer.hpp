@@ -5,8 +5,8 @@
 namespace DnmGL::D3D12 {
     class CommandBuffer final : public DnmGL::CommandBuffer {
     public:
-        CommandBuffer(D3D12::Context& context);
-        ~CommandBuffer() noexcept = default;
+        explicit CommandBuffer(D3D12::Context& context);
+        ~CommandBuffer() noexcept override = default;
     
         [[nodiscard]] ID3D12CommandList *GetCommandList() const noexcept { return m_command_list.Get(); }
 

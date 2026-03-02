@@ -6,10 +6,10 @@ namespace DnmGL::Vulkan {
     class Sampler final : public DnmGL::Sampler {
     public:
         Sampler(DnmGL::Vulkan::Context& context, const DnmGL::SamplerDesc& desc);
-        ~Sampler() {
+        ~Sampler() noexcept override {
             const auto sampler = m_sampler;
             VulkanContext->DeleteObject(
-                [sampler] (vk::Device device, [[maybe_unused]] VmaAllocator) -> void {
+                [sampler] (const vk::Device device, [[maybe_unused]] VmaAllocator) -> void {
                     device.destroy(sampler);
                 });
         }

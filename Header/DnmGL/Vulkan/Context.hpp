@@ -43,7 +43,7 @@ namespace DnmGL::Vulkan {
     constexpr vk::ImageLayout GetIdealImageLayout(DnmGL::ImageUsageFlags flags) {
         // in BeginRendering color and depthStencil resources translated to color or depthStencil layout
         if (flags.Has(DnmGL::ImageUsageBits::eReadonlyResource)) {
-            if (flags.Has(DnmGL::ImageUsageBits::eWritebleResource))
+            if (flags.Has(DnmGL::ImageUsageBits::eWritableResource))
                 return vk::ImageLayout::eGeneral;
             
             return vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -116,7 +116,8 @@ namespace DnmGL::Vulkan {
 
             vk::DescriptorSet set;
             uint32_t binding;
-            uint32_t array_element;
+            uint16_t resource_index;
+            uint16_t resource_count;
         };
 
         struct UpdateImageResource {
@@ -126,7 +127,8 @@ namespace DnmGL::Vulkan {
 
             vk::DescriptorSet set;
             uint32_t binding;
-            uint32_t array_element;
+            uint16_t resource_index;
+            uint16_t resource_count;
         };
 
         struct UpdateSamplerResource {
@@ -134,7 +136,8 @@ namespace DnmGL::Vulkan {
 
             vk::DescriptorSet set;
             uint32_t binding;
-            uint32_t array_element;
+            uint16_t resource_index;
+            uint16_t resource_count;
         };
 
         struct SupportedFeatures {
@@ -171,9 +174,9 @@ namespace DnmGL::Vulkan {
             uint32_t timestamp_valid_bits;
             uint32_t queue_family;
         };
-    public:
+
         Context() = default;
-        ~Context();
+        ~Context() override;
 
         [[nodiscard]] constexpr GraphicsBackend GetGraphicsBackend() const noexcept override {
             return GraphicsBackend::eVulkan;
@@ -326,8 +329,8 @@ namespace DnmGL::Vulkan {
                 .setRange(res.size);
 
         write.setBufferInfo({info})
-                .setDescriptorCount(1)
-                .setDstArrayElement(res.array_element)
+                .setDescriptorCount(res.resource_count)
+                .setDstArrayElement(res.resource_index)
                 .setDescriptorType(res.type)
                 .setDstBinding(res.binding)
                 .setDstSet(res.set);
@@ -339,8 +342,8 @@ namespace DnmGL::Vulkan {
             ;
 
         write.setImageInfo({info})
-                .setDescriptorCount(1)
-                .setDstArrayElement(res.array_element)
+                .setDescriptorCount(res.resource_count)
+                .setDstArrayElement(res.resource_index)
                 .setDescriptorType(res.type)
                 .setDstBinding(res.binding)
                 .setDstSet(res.set);
@@ -350,8 +353,8 @@ namespace DnmGL::Vulkan {
         info.setSampler(res.sampler);
 
         write.setImageInfo({info})
-            .setDescriptorCount(1)
-            .setDstArrayElement(res.array_element)
+            .setDescriptorCount(res.resource_count)
+            .setDstArrayElement(res.resource_index)
             .setDescriptorType(vk::DescriptorType::eSampler)
             .setDstBinding(res.binding)
             .setDstSet(res.set);
@@ -370,7 +373,6 @@ namespace DnmGL::Vulkan {
         //framebuffer and sampled support same
         //color and stencil support same
         vk::SampleCountFlags supported_samples = properties.limits.framebufferColorSampleCounts;
-        //TODO: check integer format and storage buffer msaa support
 
         switch (sample_count) {
             case SampleCount::e1: return vk::SampleCountFlagBits::e1;

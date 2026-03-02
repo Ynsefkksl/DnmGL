@@ -50,7 +50,7 @@ namespace DnmGL::Vulkan {
             vk_flags |= vk::ImageUsageFlagBits::eTransferSrc;
         }
 
-        if (usage_flags.Has(ImageUsageBits::eWritebleResource)) {
+        if (usage_flags.Has(ImageUsageBits::eWritableResource)) {
             vk_flags |= vk::ImageUsageFlagBits::eStorage;
             vk_flags |= vk::ImageUsageFlagBits::eTransferSrc;
         }
@@ -124,7 +124,8 @@ namespace DnmGL::Vulkan {
                 1
             });
         }
-        VulkanContext->GetCommandBuffer()->AddDeferLayoutTranslation(this);
+        else
+            VulkanContext->GetCommandBuffer()->AddDeferLayoutTranslation(this);
     }
 
     Image::~Image() {

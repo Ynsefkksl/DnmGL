@@ -13,8 +13,11 @@
 #include <print>
 #include <array>
 
-constexpr DnmGL::Uint2 WindowExtent = {1280, 720};
-constexpr DnmGL::SampleCount MsaaValue = DnmGL::SampleCount::e1;
+using namespace std::string_view_literals;
+using namespace std::string_literals;
+
+constexpr auto WindowExtent = DnmGL::Uint2{1280, 720};
+constexpr auto MsaaValue = DnmGL::SampleCount::e1;
 
 constexpr DnmGL::Float2 SpaceshipScale = {0.1, 0.1};
 constexpr DnmGL::Float2 EnemySpaceshipScale = {0.1, 0.1};
@@ -88,23 +91,19 @@ static uint32_t createdObjectCount = 0;
 static uint32_t updatedObjectCount = 0;
 static uint32_t deletedObjectCount = 0;
 
-static uint64_t totalCreatedObjectCount = 0;
-static uint64_t totalUpdatedObjectCount = 0;
-static uint64_t totalDeletedObjectCount = 0;
-
 static DnmGL::SpriteManager *global_sprite_manager;
 
 class Object {
 public:
-    Object(ObjectType obj_type, DnmGL::Float2 pos) 
+    Object(ObjectType obj_type, const DnmGL::Float2 pos)
     : m_pos(pos), m_obj_type(obj_type) {
-        m_handle = global_sprite_manager->CreateSprite(sprite_template[int(obj_type)]).value();
+        m_handle = global_sprite_manager->CreateSprite(sprite_template[static_cast<int>(obj_type)]).value();
         ++createdObjectCount;
     }
 
-    Object(DnmGL::CommandBuffer *command_buffer, ObjectType obj_type, DnmGL::Float2 pos) 
+    Object(DnmGL::CommandBuffer *command_buffer, ObjectType obj_type, const DnmGL::Float2 pos)
     : m_pos(pos), m_obj_type(obj_type) {
-        m_handle = global_sprite_manager->CreateSprite(command_buffer, sprite_template[int(obj_type)]);
+        m_handle = global_sprite_manager->CreateSprite(command_buffer, sprite_template[static_cast<int>(obj_type)]);
         ++createdObjectCount;
     }
 
@@ -113,7 +112,7 @@ public:
         ++deletedObjectCount;
     }
 
-    void UpdatePos() {
+    void UpdatePos() const {
         global_sprite_manager->SetSprite(m_handle, m_pos, &DnmGL::SpriteData::position);
         ++updatedObjectCount;
     }
@@ -124,7 +123,7 @@ public:
     Container<Object>::Handle m_object_handle;
 };
 
-int main(int argc, char** args) {
+int main(const int argc, char** args) {
     bool use_d3d12 = false;
     if (argc > 1)
         if (std::string(args[1]) == "D3D12")
@@ -186,7 +185,7 @@ int main(int argc, char** args) {
             command_buffer->UploadData<uint32_t>(
                 atlas_texture.get(), 
                 DnmGL::ImageSubresource{}, 
-                std::span((uint32_t *)image_data, x*y), 
+                std::span(reinterpret_cast<uint32_t *>(image_data), x*y),
                 {static_cast<uint32_t>(x), static_cast<uint32_t>(y), 1}, 
                 0);
             stbi_image_free(image_data);
@@ -204,7 +203,7 @@ int main(int argc, char** args) {
             .color_blend = true
         });
 
-        DnmGL::SpriteCamera camera({float(WindowExtent.x)/WindowExtent.y, 1}, 0.1, 10);
+        DnmGL::SpriteCamera camera({static_cast<float>(WindowExtent.x)/static_cast<float>(WindowExtent.y), 1}, 0.1, 10);
         camera.CalculateProjMtx();
         sprite_manager.SetCamera(&camera);
 
@@ -215,8 +214,8 @@ int main(int argc, char** args) {
     
             Container<Object> bullets{};
             std::vector<Container<Object>::Handle> m_deleted_bullets{};
-            Container<Object> enemys{};
-            std::vector<Container<Object>::Handle> m_deleted_enemys{};
+            Container<Object> enemies{};
+            std::vector<Container<Object>::Handle> m_deleted_enemies{};
     
             uint32_t i{};
             while (!glfwWindowShouldClose(window)) {
@@ -248,16 +247,16 @@ int main(int argc, char** args) {
                 context->Render([&] (DnmGL::CommandBuffer* command_buffer) -> bool {
                     command_buffer->BeginCopyPass();
                     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-                        auto handle = bullets.AddElement(Object(command_buffer, ObjectType::eBullet, player.m_pos + DnmGL::Float2{0, 0.1}));
+                        const auto handle = bullets.AddElement(Object(command_buffer, ObjectType::eBullet, player.m_pos + DnmGL::Float2{0, 0.1}));
                         bullets.GetElement(handle).m_object_handle = handle;
                     }
                     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-                        auto handle = enemys.AddElement(Object(command_buffer,ObjectType::eEnemySpaceship, DnmGL::Float2{0, 1}));
-                        enemys.GetElement(handle).m_object_handle = handle;
+                        const auto handle = enemies.AddElement(Object(command_buffer,ObjectType::eEnemySpaceship, DnmGL::Float2{0, 1}));
+                        enemies.GetElement(handle).m_object_handle = handle;
                     }
                     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-                        for (auto& enemy : enemys) {
-                            auto handle = bullets.AddElement(Object(command_buffer,ObjectType::eEnemyBullet, enemy.m_pos - DnmGL::Float2{0, 0.1}));
+                        for (const auto& enemy : enemies) {
+                            const auto handle = bullets.AddElement(Object(command_buffer,ObjectType::eEnemyBullet, enemy.m_pos - DnmGL::Float2{0, 0.1}));
                             bullets.GetElement(handle).m_object_handle = handle;
                         }
                     }
@@ -265,15 +264,15 @@ int main(int argc, char** args) {
                     
                     player.UpdatePos();
 
-                    for (auto& object : enemys) {
+                    for (auto& object : enemies) {
                         object.m_pos.y += EnemySpeed;
                         if (object.m_pos.y < -1) {
-                            m_deleted_enemys.emplace_back(object.m_object_handle);
+                            m_deleted_enemies.emplace_back(object.m_object_handle);
                         }
                         object.UpdatePos();
                     }
                     for (auto& object : bullets) {
-                        object.m_pos.y += speeds[int(object.m_obj_type)];
+                        object.m_pos.y += speeds[static_cast<int>(object.m_obj_type)];
                         if (object.m_obj_type == ObjectType::eBullet 
                         && object.m_pos.y > 1) {
                             m_deleted_bullets.emplace_back(object.m_object_handle);
@@ -299,12 +298,12 @@ int main(int argc, char** args) {
                     bullets.GetElement(handle).Delete();
                     bullets.DeleteElement(handle);
                 }
-                for (auto& handle : m_deleted_enemys) {
-                    enemys.GetElement(handle).Delete();
-                    enemys.DeleteElement(handle);
+                for (auto& handle : m_deleted_enemies) {
+                    enemies.GetElement(handle).Delete();
+                    enemies.DeleteElement(handle);
                 }
 
-                m_deleted_enemys.clear();
+                m_deleted_enemies.clear();
                 m_deleted_bullets.clear();
 
                 glfwPollEvents();

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cmath>
 
-//i think u should be use or read glm
 namespace DnmGL {
     #define VEC_OPS2(T) \
         constexpr auto operator<=>(const T&) const = default; \
